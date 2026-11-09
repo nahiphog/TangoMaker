@@ -61,7 +61,17 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-        <Link to="/tango" className="text-sm font-semibold tracking-tight text-foreground">
+        <Link
+          to="/tango"
+          className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground"
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}tango-mark.svg`}
+            alt=""
+            width={32}
+            height={32}
+            className="shrink-0"
+          />
           Tango Generator
         </Link>
         <div className="flex items-center gap-1">
