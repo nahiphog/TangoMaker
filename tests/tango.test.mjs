@@ -1,62 +1,90 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { generateTango, createDiggingGroups, DEFAULT_DIGGING_METHOD } from "../src/lib/tango.ts";
+import {
+  generateTango,
+  createDiggingGroups,
+  DEFAULT_DIGGING_METHOD,
+  countSolutions,
+} from "../src/lib/tango.ts";
 
-// Independent oracle: enumerate complete balanced row patterns, then stack
-// compatible rows. Does not use the generator's cell validator or solver.
+// Independent oracle: enumerate valid complete line patterns, then enforce
+// row/column agreement and branch on whole lines. No generator validators used.
 function solveIndependently(puzzle) {
   const n = puzzle.grid.length;
-  const rows = Array.from({ length: 2 ** n }, (_, mask) =>
-    Array.from({ length: n }, (_, col) => 1 + ((mask >> col) & 1)),
-  ).filter(
-    (row) =>
+  const bit = (mask, c) => 1 + ((mask >> c) & 1);
+  const patterns = Array.from({ length: 2 ** n }, (_, mask) => mask).filter((mask) => {
+    const row = Array.from({ length: n }, (_, c) => bit(mask, c));
+    return (
       row.filter((v) => v === 1).length === n / 2 &&
-      !row.some((v, c) => c < n - 2 && v === row[c + 1] && v === row[c + 2]),
-  );
-  const candidates = puzzle.grid.map((givens, r) =>
-    rows.filter(
-      (row) =>
-        row.every((v, c) => !givens[c] || givens[c] === v) &&
-        puzzle.hRel[r].every((rel, c) => !rel || (row[c] === row[c + 1]) === (rel === 1)),
+      !row.some((v, c) => c < n - 2 && v === row[c + 1] && v === row[c + 2])
+    );
+  });
+  const rows = puzzle.grid.map((givens, r) =>
+    patterns.filter(
+      (mask) =>
+        givens.every((v, c) => !v || bit(mask, c) === v) &&
+        puzzle.hRel[r].every(
+          (rel, c) => !rel || (bit(mask, c) === bit(mask, c + 1)) === (rel === 1),
+        ),
     ),
   );
-  const board = [];
+  const cols = Array.from({ length: n }, (_, c) =>
+    patterns.filter(
+      (mask) =>
+        puzzle.grid.every((row, r) => !row[c] || bit(mask, r) === row[c]) &&
+        puzzle.vRel.every(
+          (row, r) => !row[c] || (bit(mask, r) === bit(mask, r + 1)) === (row[c] === 1),
+        ),
+    ),
+  );
   const solutions = [];
-  function visit(r) {
-    if (r === n) {
-      solutions.push(board.map((row) => [...row]));
+  function visit(domains) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      if (domains.some((d) => d.length === 0)) return;
+      for (let r = 0; r < n; r++)
+        for (let c = 0; c < n; c++) {
+          const support = (domain, pos) =>
+            domain.reduce((mask, v) => mask | (1 << ((v >> pos) & 1)), 0);
+          const allowed = support(domains[r], c) & support(domains[n + c], r);
+          if (!allowed) return;
+          const rr = domains[r].filter((mask) => allowed & (1 << ((mask >> c) & 1)));
+          const cc = domains[n + c].filter((mask) => allowed & (1 << ((mask >> r) & 1)));
+          if (rr.length !== domains[r].length || cc.length !== domains[n + c].length)
+            changed = true;
+          domains[r] = rr;
+          domains[n + c] = cc;
+        }
+    }
+    let choice = -1;
+    for (let i = 0; i < domains.length; i++)
+      if (domains[i].length > 1 && (choice < 0 || domains[i].length < domains[choice].length))
+        choice = i;
+    if (choice < 0) {
+      solutions.push(
+        domains.slice(0, n).map((d) => Array.from({ length: n }, (_, c) => bit(d[0], c))),
+      );
       return;
     }
-    for (const row of candidates[r]) {
-      if (
-        r &&
-        puzzle.vRel[r - 1].some((rel, c) => rel && (row[c] === board[r - 1][c]) !== (rel === 1))
-      )
-        continue;
-      if (r > 1 && row.some((v, c) => v === board[r - 1][c] && v === board[r - 2][c])) continue;
-      if (
-        row.some((v, c) => {
-          const ones = board.reduce((sum, previous) => sum + (previous[c] === 1), 0) + (v === 1);
-          return ones > n / 2 || r + 1 - ones > n / 2;
-        })
-      )
-        continue;
-      board.push(row);
-      visit(r + 1);
-      board.pop();
-      if (solutions.length === 2) return;
+    for (const mask of domains[choice]) {
+      const next = domains.map((d) => [...d]);
+      next[choice] = [mask];
+      visit(next);
+      if (solutions.length >= 2) return;
     }
   }
-  visit(0);
+  visit([...rows, ...cols]);
   return solutions;
 }
 
 for (const method of ["rotational-pairs", "single-clue"]) {
-  for (const n of [6, 8]) {
-    test(`${method} ${n}×${n}: 50 seeded puzzles have exactly one independently verified solution`, () => {
+  for (const n of [6, 8, 10, 12]) {
+    const sampleCount = n <= 8 ? 50 : 5;
+    test(`${method} ${n}×${n}: ${sampleCount} seeded puzzles have exactly one independently verified solution`, () => {
       const originalRandom = Math.random;
       try {
-        for (let seed = 1; seed <= 50; seed++) {
+        for (let seed = 1; seed <= sampleCount; seed++) {
           let state = seed;
           Math.random = () => {
             state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
@@ -91,7 +119,7 @@ for (const method of ["rotational-pairs", "single-clue"]) {
           }
           // Trying every retained group on two seeds checks that rejected removals
           // were restored and no removable group was skipped. Uses the independent oracle.
-          if (seed <= 2) {
+          if (n <= 8 && seed <= 2) {
             const matrices = { cell: puzzle.grid, h: puzzle.hRel, v: puzzle.vRel };
             for (const group of createDiggingGroups(n, method)) {
               const saved = group.map(([type, r, c]) => matrices[type][r][c]);
@@ -113,12 +141,12 @@ for (const method of ["rotational-pairs", "single-clue"]) {
 
 test("defaults to 6×6 and rejects unsupported grid sizes", () => {
   assert.equal(generateTango().grid.length, 6);
-  for (const size of [0, 5, 7, 10, NaN, "8", null]) {
-    assert.throws(() => generateTango(size), /6×6 or 8×8/);
+  for (const size of [0, 5, 7, 9, 11, 14, NaN, "8", null]) {
+    assert.throws(() => generateTango(size), /6×6, 8×8, 10×10, or 12×12/);
   }
 });
 
-for (const n of [6, 8]) {
+for (const n of [6, 8, 10, 12]) {
   test(n + "×" + n + ": rotational groups cover every clue exactly once", () => {
     const groups = createDiggingGroups(n, "rotational-pairs");
     const seen = new Set();
@@ -155,4 +183,30 @@ test("rotational pairs are the default; invalid methods are rejected", () => {
   }
   for (const method of ["pairs", "", null, 1])
     assert.throws(() => generateTango(6, method), /rotational pairs or single-clue/);
+});
+
+test("an interrupted uniqueness check returns unknown and restores the grid", () => {
+  const puzzle = generateTango(6);
+  const grid = puzzle.solution.map((row) => [...row]);
+  grid[0][0] = 0;
+  const before = structuredClone(grid);
+  assert.equal(countSolutions(grid, puzzle.hRel, puzzle.vRel, 2, 1), null);
+  assert.deepEqual(grid, before);
+  assert.equal(countSolutions(grid, puzzle.hRel, puzzle.vRel, 2, Infinity, 0), null);
+  assert.deepEqual(grid, before);
+  assert.equal(countSolutions(grid, puzzle.hRel, puzzle.vRel), 1);
+  assert.deepEqual(grid, before);
+});
+
+test("independent oracle distinguishes impossible, unique, and ambiguous boards", () => {
+  const blank = {
+    grid: Array.from({ length: 6 }, () => Array(6).fill(0)),
+    hRel: Array.from({ length: 6 }, () => Array(5).fill(0)),
+    vRel: Array.from({ length: 5 }, () => Array(6).fill(0)),
+  };
+  assert.equal(solveIndependently(blank).length, 2);
+  const p = generateTango(6);
+  assert.equal(solveIndependently({ ...p, grid: p.solution }).length, 1);
+  blank.grid[0] = [1, 1, 1, 0, 0, 0];
+  assert.equal(solveIndependently(blank).length, 0);
 });

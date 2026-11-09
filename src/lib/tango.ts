@@ -1,4 +1,4 @@
-// Tango puzzle generator — 6×6 or 8×8 grid of two symbols, generated via "digging".
+// Tango puzzle generator — 6×6 through 12×12 grid of two symbols, generated via "digging".
 
 export const EMPTY = 0;
 export const ORANGE = 1;
@@ -21,7 +21,8 @@ export interface TangoPuzzle {
   vRel: VRel;
 }
 
-export type GridSize = 6 | 8;
+export const GRID_SIZES = [6, 8, 10, 12] as const;
+export type GridSize = (typeof GRID_SIZES)[number];
 
 function makeGrid(N: GridSize): Grid {
   return Array.from({ length: N }, () => Array<Cell>(N).fill(EMPTY as Cell));
@@ -133,14 +134,27 @@ function okAt(grid: Grid, hRel: HRel, vRel: VRel, r: number, c: number): boolean
   return true;
 }
 
-// Exhaustive search, stopping only after two solutions are proven. Never
-// interpret an interrupted search as unique. The input is restored on return.
-function countSolutions(grid: Grid, hRel: HRel, vRel: VRel, limit = 2): number {
+// Returns null when the search budget is exhausted, never a partial count.
+// With no budget this is exhaustive up to the limit. The input is restored.
+export function countSolutions(
+  grid: Grid,
+  hRel: HRel,
+  vRel: VRel,
+  limit = 2,
+  maxNodes = Infinity,
+  deadline = Infinity,
+): number | null {
   const N = grid.length;
   if (!isValidSoFar(grid, hRel, vRel)) return 0;
   let solutions = 0;
+  let nodes = 0;
+  let interrupted = false;
   const backtrack = (): void => {
-    if (solutions >= limit) return;
+    if (solutions >= limit || interrupted) return;
+    if (++nodes > maxNodes || (nodes % 128 === 1 && performance.now() >= deadline)) {
+      interrupted = true;
+      return;
+    }
     let bestR = -1;
     let bestC = -1;
     let bestValues: Cell[] = [];
@@ -172,11 +186,11 @@ function countSolutions(grid: Grid, hRel: HRel, vRel: VRel, limit = 2): number {
       grid[bestR][bestC] = value;
       backtrack();
       grid[bestR][bestC] = EMPTY;
-      if (solutions >= limit) break;
+      if (solutions >= limit || interrupted) break;
     }
   };
   backtrack();
-  return solutions;
+  return interrupted ? null : solutions;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -215,7 +229,7 @@ export type CluePosition = ["cell" | "h" | "v", number, number];
 // Each matrix rotates independently: cells are N×N, horizontal edges N×(N−1),
 // and vertical edges (N−1)×N. Only include the earlier member of each pair.
 export function createDiggingGroups(N: GridSize, method: DiggingMethod): CluePosition[][] {
-  if (N !== 6 && N !== 8) throw new Error("Choose a 6×6 or 8×8 grid.");
+  if (!GRID_SIZES.includes(N)) throw new Error("Choose a 6×6, 8×8, 10×10, or 12×12 grid.");
   if (method !== "rotational-pairs" && method !== "single-clue") {
     throw new Error("Choose rotational pairs or single-clue digging.");
   }
@@ -261,12 +275,25 @@ export function generateTango(
   );
 
   const matrices = { cell: grid, h: hRel, v: vRel };
+  // Large boards may retain extra clues rather than wait indefinitely for
+  // a difficult proof. Every accepted removal still has a complete proof.
+  const deadline = N >= 10 ? performance.now() + 8000 : Infinity;
   for (const group of shuffle(groups)) {
+    if (performance.now() >= deadline) break;
     const saved = group.map(([type, r, c]) => matrices[type][r][c]);
     // Remove the entire group before counting, and restore the entire group
     // on rejection. Relation values are preserved individually (= may pair ×).
     for (const [type, r, c] of group) matrices[type][r][c] = EMPTY;
-    if (countSolutions(grid, hRel, vRel, 2) !== 1) {
+    if (
+      countSolutions(
+        grid,
+        hRel,
+        vRel,
+        2,
+        N >= 10 ? 20000 : Infinity,
+        N >= 10 ? Math.min(deadline, performance.now() + 100) : Infinity,
+      ) !== 1
+    ) {
       group.forEach(([type, r, c], index) => {
         matrices[type][r][c] = saved[index];
       });

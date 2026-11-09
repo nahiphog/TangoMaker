@@ -4,14 +4,14 @@ A standalone Tango puzzle generator built with React, TypeScript, and TanStack S
 
 **Live app:** https://nahiphog.github.io/TangoMaker/
 
-- Generate 6×6 or 8×8 puzzles with exactly one solution.
+- Generate 6×6, 8×8, 10×10, or 12×12 puzzles with exactly one solution.
 - Choose rotational-pair digging (default) for a 180° symmetric clue layout, or single-clue digging.
 - View the puzzle and complete solution side by side.
 - Copy either grid as an image.
 - Switch between light and dark themes.
 - Generate in a background Web Worker, with cancellation and safe grid-size switching.
 
-Each row and column contains equal numbers of orange and blue symbols (three each for 6×6, four each for 8×8), with no three identical consecutive symbols. Cells joined by `=` match; cells joined by `×` differ. The generator removes clues only when its backtracking solver confirms that exactly one solution remains. In rotational-pair mode, both symmetric clues are removed before testing and both are restored if uniqueness is lost. Symmetry applies to clue positions, not their colors or relation values.
+Each row and column contains equal numbers of orange and blue symbols (half the grid size each), with no three identical consecutive symbols. Cells joined by `=` match; cells joined by `×` differ. The generator removes clues only when its backtracking solver confirms that exactly one solution remains. In rotational-pair mode, both symmetric clues are removed before testing and both are restored if uniqueness is lost. Symmetry applies to clue positions, not their colors or relation values. For 10×10 and 12×12, difficult uniqueness checks are conservatively rejected and digging has an eight-second budget. These puzzles may retain extra clues; incomplete searches are never accepted as proof of uniqueness. All generation runs in a cancellable Web Worker.
 
 ## Run locally
 
@@ -34,7 +34,7 @@ npm test
 npm run build
 ```
 
-The tests use Node.js 24 and independently solve 50 reproducible puzzles for each combination of size and digging method, checking uniqueness and agreement with the generated answer.
+The tests use Node.js 24 and independently solve 50 reproducible puzzles per method at 6×6 and 8×8, plus five per method at 10×10 and 12×12, checking uniqueness and agreement with the generated answer.
 
 ## GitHub Pages
 

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_DIGGING_METHOD,
+  GRID_SIZES,
   tallies,
   type DiggingMethod,
   type GridSize,
@@ -19,13 +20,13 @@ export const Route = createFileRoute("/tango")({
       {
         name: "description",
         content:
-          "Generate a 6×6 or 8×8 Tango puzzle with = and × constraints and a guaranteed unique solution.",
+          "Generate a 6×6, 8×8, 10×10, or 12×12 Tango puzzle with = and × constraints and a guaranteed unique solution.",
       },
       { property: "og:title", content: "Tango Generator" },
       {
         property: "og:description",
         content:
-          "Generate a 6×6 or 8×8 Tango puzzle with = and × constraints and a guaranteed unique solution.",
+          "Generate a 6×6, 8×8, 10×10, or 12×12 Tango puzzle with = and × constraints and a guaranteed unique solution.",
       },
     ],
   }),
@@ -124,8 +125,11 @@ function TangoPage() {
             }}
             className="rounded-md border border-input bg-background px-4 py-2 text-foreground"
           >
-            <option value="6">6×6</option>
-            <option value="8">8×8</option>
+            {GRID_SIZES.map((value) => (
+              <option key={value} value={value}>
+                {value}×{value}
+              </option>
+            ))}
           </select>
           <label htmlFor="digging-method" className="text-sm font-medium">
             Digging method
@@ -178,7 +182,9 @@ function TangoPage() {
               <span className="font-semibold text-foreground">{t.symbols}</span> · Total placements:{" "}
               <span className="font-semibold text-foreground">{t.circles + t.symbols}</span>
             </p>
-            <div className="grid w-full grid-cols-1 gap-12 md:grid-cols-2 md:gap-8">
+            <div
+              className={`grid w-full grid-cols-1 gap-12 ${state.grid.length <= 8 ? "md:grid-cols-2 md:gap-8" : ""}`}
+            >
               <div className="flex flex-col items-center gap-3">
                 <TangoGrid
                   ref={puzzleRef}

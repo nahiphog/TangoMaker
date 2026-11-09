@@ -85,14 +85,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Generate 6×6 or 8×8 Tango puzzles with unique solutions and export puzzles and answers as images.",
+          "Generate 6×6, 8×8, 10×10, or 12×12 Tango puzzles with unique solutions and export puzzles and answers as images.",
       },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Tango Generator" },
       {
         property: "og:description",
         content:
-          "Generate 6×6 or 8×8 Tango puzzles with unique solutions and export puzzles and answers as images.",
+          "Generate 6×6, 8×8, 10×10, or 12×12 Tango puzzles with unique solutions and export puzzles and answers as images.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -101,7 +101,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "twitter:description",
         content:
-          "Generate 6×6 or 8×8 Tango puzzles with unique solutions and export puzzles and answers as images.",
+          "Generate 6×6, 8×8, 10×10, or 12×12 Tango puzzles with unique solutions and export puzzles and answers as images.",
       },
       {
         property: "og:image",
