@@ -1,11 +1,13 @@
-import { generateTango, type GridSize, type TangoPuzzle } from "./tango";
+import { generateTango, type DiggingMethod, type GridSize, type TangoPuzzle } from "./tango";
+
+export type GenerationRequest = { size: GridSize; method: DiggingMethod };
 
 export type GenerationResult = { ok: true; puzzle: TangoPuzzle } | { ok: false; error: string };
 
-self.addEventListener("message", (event: MessageEvent<GridSize>) => {
+self.addEventListener("message", (event: MessageEvent<GenerationRequest>) => {
   let result: GenerationResult;
   try {
-    result = { ok: true, puzzle: generateTango(event.data) };
+    result = { ok: true, puzzle: generateTango(event.data.size, event.data.method) };
   } catch (error) {
     result = {
       ok: false,

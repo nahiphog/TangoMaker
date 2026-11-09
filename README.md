@@ -5,12 +5,13 @@ A standalone Tango puzzle generator built with React, TypeScript, and TanStack S
 **Live app:** https://nahiphog.github.io/TangoMaker/
 
 - Generate 6×6 or 8×8 puzzles with exactly one solution.
+- Choose rotational-pair digging (default) for a 180° symmetric clue layout, or single-clue digging.
 - View the puzzle and complete solution side by side.
 - Copy either grid as an image.
 - Switch between light and dark themes.
 - Generate in a background Web Worker, with cancellation and safe grid-size switching.
 
-Each row and column contains equal numbers of orange and blue symbols (three each for 6×6, four each for 8×8), with no three identical consecutive symbols. Cells joined by `=` match; cells joined by `×` differ. The generator removes clues only when its backtracking solver confirms that exactly one solution remains.
+Each row and column contains equal numbers of orange and blue symbols (three each for 6×6, four each for 8×8), with no three identical consecutive symbols. Cells joined by `=` match; cells joined by `×` differ. The generator removes clues only when its backtracking solver confirms that exactly one solution remains. In rotational-pair mode, both symmetric clues are removed before testing and both are restored if uniqueness is lost. Symmetry applies to clue positions, not their colors or relation values.
 
 ## Run locally
 
@@ -33,7 +34,7 @@ npm test
 npm run build
 ```
 
-The tests use Node.js 24 and independently solve 50 reproducible puzzles at each size, checking uniqueness and agreement with the generated answer.
+The tests use Node.js 24 and independently solve 50 reproducible puzzles for each combination of size and digging method, checking uniqueness and agreement with the generated answer.
 
 ## GitHub Pages
 

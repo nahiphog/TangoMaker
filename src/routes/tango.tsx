@@ -1,7 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { tallies, type GridSize, type TangoPuzzle } from "@/lib/tango";
-import type { GenerationResult } from "@/lib/tango.worker";
+import {
+  DEFAULT_DIGGING_METHOD,
+  tallies,
+  type DiggingMethod,
+  type GridSize,
+  type TangoPuzzle,
+} from "@/lib/tango";
+import type { GenerationRequest, GenerationResult } from "@/lib/tango.worker";
 import { TangoGrid } from "@/components/TangoGrid";
 import { CopyImageButton } from "@/components/CopyImageButton";
 import { Button } from "@/components/ui/button";
@@ -28,6 +34,7 @@ export const Route = createFileRoute("/tango")({
 
 function TangoPage() {
   const [size, setSize] = useState<GridSize>(6);
+  const [method, setMethod] = useState<DiggingMethod>(DEFAULT_DIGGING_METHOD);
   const [state, setState] = useState<TangoPuzzle | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +83,7 @@ function TangoPage() {
       };
       worker.onerror = fail;
       worker.onmessageerror = fail;
-      worker.postMessage(size);
+      worker.postMessage({ size, method } satisfies GenerationRequest);
     } catch {
       cancel();
       setError(
@@ -120,6 +127,29 @@ function TangoPage() {
             <option value="6">6×6</option>
             <option value="8">8×8</option>
           </select>
+          <label htmlFor="digging-method" className="text-sm font-medium">
+            Digging method
+          </label>
+          <select
+            id="digging-method"
+            aria-describedby="digging-description"
+            value={method}
+            onChange={(event) => {
+              cancel();
+              setMethod(event.target.value as DiggingMethod);
+              setState(null);
+              setError(null);
+            }}
+            className="rounded-md border border-input bg-background px-4 py-2 text-foreground"
+          >
+            <option value="rotational-pairs">Rotational pairs</option>
+            <option value="single-clue">Single clue</option>
+          </select>
+          <p id="digging-description" className="max-w-lg text-sm text-muted-foreground">
+            {method === "rotational-pairs"
+              ? "Removes two clues at positions related by a 180° rotation together, keeping a symmetric clue layout. Colors and relation symbols need not match."
+              : "Removes one random clue at a time, without requiring a symmetric layout."}
+          </p>
           <Button size="lg" onClick={run} disabled={loading} className="mt-2">
             {loading ? "Generating…" : state ? "Generate new puzzle" : "Generate puzzle"}
           </Button>
@@ -130,7 +160,7 @@ function TangoPage() {
           )}
           <p role="status" className="text-sm text-muted-foreground">
             {loading
-              ? "Generating a uniquely solvable puzzle… You can change size or cancel anytime."
+              ? "Generating a uniquely solvable puzzle… You can change settings or cancel anytime."
               : "Every generated puzzle has exactly one solution."}
           </p>
           {error && (

@@ -208,10 +208,42 @@ function generateFullSolution(N: GridSize): Grid {
   return grid;
 }
 
-type PoolItem = ["cell" | "h" | "v", number, number];
+export type DiggingMethod = "rotational-pairs" | "single-clue";
+export const DEFAULT_DIGGING_METHOD: DiggingMethod = "rotational-pairs";
+export type CluePosition = ["cell" | "h" | "v", number, number];
 
-export function generateTango(N: GridSize = 6): TangoPuzzle {
+// Each matrix rotates independently: cells are N×N, horizontal edges N×(N−1),
+// and vertical edges (N−1)×N. Only include the earlier member of each pair.
+export function createDiggingGroups(N: GridSize, method: DiggingMethod): CluePosition[][] {
   if (N !== 6 && N !== 8) throw new Error("Choose a 6×6 or 8×8 grid.");
+  if (method !== "rotational-pairs" && method !== "single-clue") {
+    throw new Error("Choose rotational pairs or single-clue digging.");
+  }
+  const groups: CluePosition[][] = [];
+  for (const type of ["cell", "h", "v"] as const) {
+    const rows = type === "v" ? N - 1 : N;
+    const cols = type === "h" ? N - 1 : N;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const first: CluePosition = [type, r, c];
+        if (method === "single-clue") {
+          groups.push([first]);
+        } else {
+          const rr = rows - 1 - r;
+          const cc = cols - 1 - c;
+          if (r * cols + c < rr * cols + cc) groups.push([first, [type, rr, cc]]);
+        }
+      }
+    }
+  }
+  return groups;
+}
+
+export function generateTango(
+  N: GridSize = 6,
+  method: DiggingMethod = DEFAULT_DIGGING_METHOD,
+): TangoPuzzle {
+  const groups = createDiggingGroups(N, method);
   const solution = generateFullSolution(N);
   const grid: Grid = solution.map((row) => [...row]);
 
@@ -228,25 +260,16 @@ export function generateTango(N: GridSize = 6): TangoPuzzle {
     ),
   );
 
-  const pool: PoolItem[] = [];
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) pool.push(["cell", r, c]);
-  for (let r = 0; r < N; r++) for (let c = 0; c < N - 1; c++) pool.push(["h", r, c]);
-  for (let r = 0; r < N - 1; r++) for (let c = 0; c < N; c++) pool.push(["v", r, c]);
-  shuffle(pool);
-
-  for (const [type, r, c] of pool) {
-    if (type === "cell") {
-      const saved = grid[r][c];
-      grid[r][c] = EMPTY as Cell;
-      if (countSolutions(grid, hRel, vRel, 2) !== 1) grid[r][c] = saved;
-    } else if (type === "h") {
-      const saved = hRel[r][c];
-      hRel[r][c] = NONE as Rel;
-      if (countSolutions(grid, hRel, vRel, 2) !== 1) hRel[r][c] = saved;
-    } else {
-      const saved = vRel[r][c];
-      vRel[r][c] = NONE as Rel;
-      if (countSolutions(grid, hRel, vRel, 2) !== 1) vRel[r][c] = saved;
+  const matrices = { cell: grid, h: hRel, v: vRel };
+  for (const group of shuffle(groups)) {
+    const saved = group.map(([type, r, c]) => matrices[type][r][c]);
+    // Remove the entire group before counting, and restore the entire group
+    // on rejection. Relation values are preserved individually (= may pair ×).
+    for (const [type, r, c] of group) matrices[type][r][c] = EMPTY;
+    if (countSolutions(grid, hRel, vRel, 2) !== 1) {
+      group.forEach(([type, r, c], index) => {
+        matrices[type][r][c] = saved[index];
+      });
     }
   }
 
