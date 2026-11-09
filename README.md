@@ -7,6 +7,7 @@ A standalone Tango puzzle generator built with React, TypeScript, and TanStack S
 - Generate 6×6, 8×8, 10×10, or 12×12 puzzles with exactly one solution.
 - Choose rotational-pair digging (default) for a 180° symmetric clue layout, or single-clue digging.
 - View the puzzle and complete solution side by side.
+- Choose **Play this grid** to solve it interactively with locked clues, keyboard/touch input, live rule feedback, undo, reset, and progress checking. The answer is hidden during play; leaving play clears your entries.
 - Copy either grid as an image.
 - Switch between light and dark themes.
 - Generate in a background Web Worker, with cancellation and safe grid-size switching.

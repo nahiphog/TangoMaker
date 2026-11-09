@@ -10,6 +10,7 @@ import {
 } from "@/lib/tango";
 import type { GenerationRequest, GenerationResult } from "@/lib/tango.worker";
 import { TangoGrid } from "@/components/TangoGrid";
+import { TangoGame } from "@/components/TangoGame";
 import { CopyImageButton } from "@/components/CopyImageButton";
 import { Button } from "@/components/ui/button";
 
@@ -38,6 +39,7 @@ function TangoPage() {
   const [method, setMethod] = useState<DiggingMethod>(DEFAULT_DIGGING_METHOD);
   const [state, setState] = useState<TangoPuzzle | null>(null);
   const [loading, setLoading] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const puzzleRef = useRef<HTMLDivElement>(null);
@@ -94,6 +96,14 @@ function TangoPage() {
   };
 
   const t = state ? tallies(state) : null;
+
+  if (state && playing) {
+    return (
+      <main className="min-h-[calc(100vh-57px)] bg-background px-6 py-10">
+        <TangoGame puzzle={state} onExit={() => setPlaying(false)} />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-[calc(100vh-57px)] bg-background px-6 py-16">
@@ -176,6 +186,9 @@ function TangoPage() {
 
         {state && t && (
           <section className="flex w-full flex-col items-center gap-6">
+            <Button size="lg" disabled={loading} onClick={() => setPlaying(true)}>
+              Play this grid
+            </Button>
             <p className="text-sm text-muted-foreground">
               Givens: <span className="font-semibold text-foreground">{t.circles}</span> /{" "}
               {state.grid.length ** 2} · Symbols:{" "}

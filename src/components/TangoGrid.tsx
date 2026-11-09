@@ -1,5 +1,14 @@
 import { forwardRef } from "react";
-import { EMPTY, ORANGE, EQUAL, NONE, type Grid, type HRel, type VRel } from "@/lib/tango";
+import {
+  EMPTY,
+  ORANGE,
+  EQUAL,
+  NONE,
+  type Cell,
+  type Grid,
+  type HRel,
+  type VRel,
+} from "@/lib/tango";
 
 interface Props {
   grid: Grid;
@@ -7,6 +16,8 @@ interface Props {
   hRel: HRel;
   vRel: VRel;
   label: string;
+  onCellChange?: (r: number, c: number, value: Cell) => void;
+  conflicts?: Set<string>;
 }
 
 const COLORS = {
@@ -15,7 +26,7 @@ const COLORS = {
 };
 
 export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
-  { grid, givens, hRel, vRel, label },
+  { grid, givens, hRel, vRel, label, onCellChange, conflicts },
   ref,
 ) {
   const N = grid.length;
@@ -34,10 +45,68 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
             row.map((val, c) => {
               const isGiven = givens[r][c] !== EMPTY;
               const color = val === ORANGE ? COLORS.orange : COLORS.blue;
+              const CellElement = onCellChange ? "button" : "div";
+              const invalid = conflicts?.has(`${r},${c}`) ?? false;
               return (
-                <div
+                <CellElement
                   key={`${r}-${c}`}
-                  className={`flex aspect-square w-full items-center justify-center ${
+                  type={onCellChange ? "button" : undefined}
+                  disabled={onCellChange ? isGiven : undefined}
+                  data-row={r}
+                  data-col={c}
+                  aria-label={
+                    onCellChange
+                      ? `Row ${r + 1}, column ${c + 1}: ${val === 0 ? "blank" : val === 1 ? "orange" : "blue"}${isGiven ? ", given" : ""}${invalid ? ", conflict" : ""}`
+                      : undefined
+                  }
+                  aria-invalid={onCellChange && invalid ? true : undefined}
+                  aria-describedby={onCellChange ? "play-instructions" : undefined}
+                  onClick={
+                    onCellChange ? () => onCellChange(r, c, ((val + 1) % 3) as Cell) : undefined
+                  }
+                  onKeyDown={
+                    onCellChange
+                      ? (event) => {
+                          const value =
+                            event.key === "1"
+                              ? 1
+                              : event.key === "2"
+                                ? 2
+                                : ["0", "Delete", "Backspace"].includes(event.key)
+                                  ? 0
+                                  : null;
+                          if (value !== null) {
+                            event.preventDefault();
+                            onCellChange(r, c, value);
+                          }
+                          const directions: Record<string, number[]> = {
+                            ArrowLeft: [0, -1],
+                            ArrowRight: [0, 1],
+                            ArrowUp: [-1, 0],
+                            ArrowDown: [1, 0],
+                          };
+                          const direction = directions[event.key];
+                          if (direction) {
+                            event.preventDefault();
+                            let rr = r + direction[0],
+                              cc = c + direction[1];
+                            while (rr >= 0 && rr < N && cc >= 0 && cc < N) {
+                              const target =
+                                event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+                                  `button[data-row="${rr}"][data-col="${cc}"]`,
+                                );
+                              if (target && !target.disabled) {
+                                target.focus();
+                                break;
+                              }
+                              rr += direction[0];
+                              cc += direction[1];
+                            }
+                          }
+                        }
+                      : undefined
+                  }
+                  className={`flex aspect-square w-full items-center justify-center ${onCellChange ? "focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-primary disabled:cursor-default" : ""} ${invalid ? "bg-destructive/10 ring-2 ring-inset ring-destructive" : ""} ${
                     c === N - 1 ? "" : "border-r border-r-border"
                   } ${r === N - 1 ? "" : "border-b border-b-border"}`}
                 >
@@ -47,11 +116,11 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                       style={{
                         backgroundColor: color.fill,
                         border: `${isGiven ? 2.5 : 1.5}px ${isGiven ? "solid" : "dashed"} ${color.stroke}`,
-                        opacity: isGiven ? 1 : 0.45,
+                        opacity: isGiven || onCellChange ? 1 : 0.45,
                       }}
                     />
                   )}
-                </div>
+                </CellElement>
               );
             }),
           )}
