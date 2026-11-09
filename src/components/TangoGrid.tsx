@@ -9,8 +9,6 @@ interface Props {
   label: string;
 }
 
-const N = 6;
-
 const COLORS = {
   orange: { fill: "#E07E2B", stroke: "#AD5511" },
   blue: { fill: "#3A7DCE", stroke: "#23508C" },
@@ -20,10 +18,18 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
   { grid, givens, hRel, vRel, label },
   ref,
 ) {
+  const N = grid.length;
   return (
-    <figure className="flex flex-col items-center gap-3">
-      <div ref={ref} className="relative border-2 border-foreground bg-background p-1">
-        <div className="relative grid grid-cols-6">
+    <figure className="flex w-full flex-col items-center gap-3">
+      <div
+        ref={ref}
+        className="relative w-full border-2 border-foreground bg-background p-1"
+        style={{ maxWidth: N * 48 + 12 }}
+      >
+        <div
+          className="relative grid"
+          style={{ gridTemplateColumns: `repeat(${N}, minmax(0, 1fr))` }}
+        >
           {grid.map((row, r) =>
             row.map((val, c) => {
               const isGiven = givens[r][c] !== EMPTY;
@@ -31,7 +37,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
               return (
                 <div
                   key={`${r}-${c}`}
-                  className={`flex h-11 w-11 items-center justify-center sm:h-12 sm:w-12 ${
+                  className={`flex aspect-square w-full items-center justify-center ${
                     c === N - 1 ? "" : "border-r border-r-border"
                   } ${r === N - 1 ? "" : "border-b border-b-border"}`}
                 >

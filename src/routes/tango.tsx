@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { generateTango, tallies, type TangoPuzzle } from "@/lib/tango";
+import { useEffect, useRef, useState } from "react";
+import { tallies, type GridSize, type TangoPuzzle } from "@/lib/tango";
+import type { GenerationResult } from "@/lib/tango.worker";
 import { TangoGrid } from "@/components/TangoGrid";
 import { CopyImageButton } from "@/components/CopyImageButton";
 import { Button } from "@/components/ui/button";
@@ -12,13 +13,13 @@ export const Route = createFileRoute("/tango")({
       {
         name: "description",
         content:
-          "Generate a 6×6 Tango puzzle with = and × constraints and a guaranteed unique solution.",
+          "Generate a 6×6 or 8×8 Tango puzzle with = and × constraints and a guaranteed unique solution.",
       },
       { property: "og:title", content: "Tango Generator" },
       {
         property: "og:description",
         content:
-          "Generate a 6×6 Tango puzzle with = and × constraints and a guaranteed unique solution.",
+          "Generate a 6×6 or 8×8 Tango puzzle with = and × constraints and a guaranteed unique solution.",
       },
     ],
   }),
@@ -26,17 +27,62 @@ export const Route = createFileRoute("/tango")({
 });
 
 function TangoPage() {
+  const [size, setSize] = useState<GridSize>(6);
   const [state, setState] = useState<TangoPuzzle | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const workerRef = useRef<Worker | null>(null);
   const puzzleRef = useRef<HTMLDivElement>(null);
   const solutionRef = useRef<HTMLDivElement>(null);
 
+  useEffect(
+    () => () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    },
+    [],
+  );
+
+  const cancel = () => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setLoading(false);
+  };
+
   const run = () => {
+    cancel();
+    setError(null);
     setLoading(true);
-    setTimeout(() => {
-      setState(generateTango());
-      setLoading(false);
-    }, 10);
+    try {
+      const worker = new Worker(new URL("../lib/tango.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      workerRef.current = worker;
+      const finish = () => {
+        worker.terminate();
+        workerRef.current = null;
+        setLoading(false);
+      };
+      worker.onmessage = (event: MessageEvent<GenerationResult>) => {
+        if (workerRef.current !== worker) return;
+        if (event.data.ok) setState(event.data.puzzle);
+        else setError(event.data.error);
+        finish();
+      };
+      const fail = () => {
+        if (workerRef.current !== worker) return;
+        setError("Could not generate a puzzle. Please try again.");
+        finish();
+      };
+      worker.onerror = fail;
+      worker.onmessageerror = fail;
+      worker.postMessage(size);
+    } catch {
+      cancel();
+      setError(
+        "Could not start puzzle generation. Please try again in a browser with Web Worker support.",
+      );
+    }
   };
 
   const t = state ? tallies(state) : null;
@@ -52,21 +98,54 @@ function TangoPage() {
             Tango
           </h1>
           <p className="max-w-lg text-sm text-muted-foreground">
-            6×6 grid of two symbols. No three of the same symbol in a row or column, three of each
-            per row and column, and cells joined by <span className="font-semibold">=</span> match
-            while <span className="font-semibold">×</span> must differ.
+            {size}×{size} grid of two symbols. No three of the same symbol in a row or column,{" "}
+            {size / 2} of each per row and column, and cells joined by{" "}
+            <span className="font-semibold">=</span> match while{" "}
+            <span className="font-semibold">×</span> must differ.
           </p>
+          <label htmlFor="grid-size" className="text-sm font-medium">
+            Grid size
+          </label>
+          <select
+            id="grid-size"
+            value={size}
+            onChange={(event) => {
+              cancel();
+              setSize(Number(event.target.value) as GridSize);
+              setState(null);
+              setError(null);
+            }}
+            className="rounded-md border border-input bg-background px-4 py-2 text-foreground"
+          >
+            <option value="6">6×6</option>
+            <option value="8">8×8</option>
+          </select>
           <Button size="lg" onClick={run} disabled={loading} className="mt-2">
             {loading ? "Generating…" : state ? "Generate new puzzle" : "Generate puzzle"}
           </Button>
+          {loading && (
+            <Button variant="outline" onClick={cancel}>
+              Cancel generation
+            </Button>
+          )}
+          <p role="status" className="text-sm text-muted-foreground">
+            {loading
+              ? "Generating a uniquely solvable puzzle… You can change size or cancel anytime."
+              : "Every generated puzzle has exactly one solution."}
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
         </header>
 
         {state && t && (
           <section className="flex w-full flex-col items-center gap-6">
             <p className="text-sm text-muted-foreground">
-              Givens: <span className="font-semibold text-foreground">{t.circles}</span> / 36 ·
-              Symbols: <span className="font-semibold text-foreground">{t.symbols}</span> · Total
-              placements:{" "}
+              Givens: <span className="font-semibold text-foreground">{t.circles}</span> /{" "}
+              {state.grid.length ** 2} · Symbols:{" "}
+              <span className="font-semibold text-foreground">{t.symbols}</span> · Total placements:{" "}
               <span className="font-semibold text-foreground">{t.circles + t.symbols}</span>
             </p>
             <div className="grid w-full grid-cols-1 gap-12 md:grid-cols-2 md:gap-8">
@@ -79,7 +158,10 @@ function TangoPage() {
                   vRel={state.vRel}
                   label="Puzzle"
                 />
-                <CopyImageButton targetRef={puzzleRef} filename="tango-puzzle.png" />
+                <CopyImageButton
+                  targetRef={puzzleRef}
+                  filename={`tango-${state.grid.length}x${state.grid.length}-puzzle.png`}
+                />
               </div>
               <div className="flex flex-col items-center gap-3">
                 <TangoGrid
@@ -90,7 +172,10 @@ function TangoPage() {
                   vRel={state.vRel}
                   label="Solution"
                 />
-                <CopyImageButton targetRef={solutionRef} filename="tango-solution.png" />
+                <CopyImageButton
+                  targetRef={solutionRef}
+                  filename={`tango-${state.grid.length}x${state.grid.length}-solution.png`}
+                />
               </div>
             </div>
           </section>

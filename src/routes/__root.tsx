@@ -85,14 +85,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Generate 6×6 Tango puzzles with unique solutions and export puzzles and answers as images.",
+          "Generate 6×6 or 8×8 Tango puzzles with unique solutions and export puzzles and answers as images.",
       },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Tango Generator" },
       {
         property: "og:description",
         content:
-          "Generate 6×6 Tango puzzles with unique solutions and export puzzles and answers as images.",
+          "Generate 6×6 or 8×8 Tango puzzles with unique solutions and export puzzles and answers as images.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -101,7 +101,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "twitter:description",
         content:
-          "Generate 6×6 Tango puzzles with unique solutions and export puzzles and answers as images.",
+          "Generate 6×6 or 8×8 Tango puzzles with unique solutions and export puzzles and answers as images.",
       },
       {
         property: "og:image",
@@ -119,7 +119,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: `${import.meta.env.BASE_URL}favicon.ico`, type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,

@@ -1,4 +1,4 @@
-// Tango puzzle generator — 6x6 grid of two symbols, generated via "digging".
+// Tango puzzle generator — 6×6 or 8×8 grid of two symbols, generated via "digging".
 
 export const EMPTY = 0;
 export const ORANGE = 1;
@@ -9,10 +9,10 @@ export const EQUAL = 1;
 export const NOT_EQUAL = 2;
 
 export type Cell = 0 | 1 | 2;
-export type Grid = Cell[][]; // 6x6
+export type Grid = Cell[][]; // N × N
 export type Rel = 0 | 1 | 2;
-export type HRel = Rel[][]; // 6 rows x 5 cols
-export type VRel = Rel[][]; // 5 rows x 6 cols
+export type HRel = Rel[][]; // N rows × (N - 1) columns
+export type VRel = Rel[][]; // (N - 1) rows × N columns
 
 export interface TangoPuzzle {
   grid: Grid;
@@ -21,13 +21,14 @@ export interface TangoPuzzle {
   vRel: VRel;
 }
 
-const N = 6;
+export type GridSize = 6 | 8;
 
-function makeGrid(): Grid {
+function makeGrid(N: GridSize): Grid {
   return Array.from({ length: N }, () => Array<Cell>(N).fill(EMPTY as Cell));
 }
 
 function isValidSoFar(grid: Grid, hRel: HRel, vRel: VRel): boolean {
+  const N = grid.length;
   // no three in a row horizontally
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N - 2; c++) {
@@ -50,7 +51,7 @@ function isValidSoFar(grid: Grid, hRel: HRel, vRel: VRel): boolean {
       if (grid[r][c] === ORANGE) o++;
       else if (grid[r][c] === BLUE) b++;
     }
-    if (o > 3 || b > 3) return false;
+    if (o > N / 2 || b > N / 2) return false;
   }
   for (let c = 0; c < N; c++) {
     let o = 0;
@@ -59,7 +60,7 @@ function isValidSoFar(grid: Grid, hRel: HRel, vRel: VRel): boolean {
       if (grid[r][c] === ORANGE) o++;
       else if (grid[r][c] === BLUE) b++;
     }
-    if (o > 3 || b > 3) return false;
+    if (o > N / 2 || b > N / 2) return false;
   }
   // relations
   for (let r = 0; r < N; r++) {
@@ -88,6 +89,7 @@ function isValidSoFar(grid: Grid, hRel: HRel, vRel: VRel): boolean {
 }
 
 function okAt(grid: Grid, hRel: HRel, vRel: VRel, r: number, c: number): boolean {
+  const N = grid.length;
   const v = grid[r][c];
   if (v === EMPTY) return true;
 
@@ -108,14 +110,14 @@ function okAt(grid: Grid, hRel: HRel, vRel: VRel, r: number, c: number): boolean
     if (grid[r][i] === ORANGE) o++;
     else if (grid[r][i] === BLUE) b++;
   }
-  if (o > 3 || b > 3) return false;
+  if (o > N / 2 || b > N / 2) return false;
   o = 0;
   b = 0;
   for (let i = 0; i < N; i++) {
     if (grid[i][c] === ORANGE) o++;
     else if (grid[i][c] === BLUE) b++;
   }
-  if (o > 3 || b > 3) return false;
+  if (o > N / 2 || b > N / 2) return false;
 
   // relations touching (r, c)
   const checkRel = (rel: Rel, a: Cell, d: Cell): boolean => {
@@ -131,30 +133,49 @@ function okAt(grid: Grid, hRel: HRel, vRel: VRel, r: number, c: number): boolean
   return true;
 }
 
+// Exhaustive search, stopping only after two solutions are proven. Never
+// interpret an interrupted search as unique. The input is restored on return.
 function countSolutions(grid: Grid, hRel: HRel, vRel: VRel, limit = 2): number {
+  const N = grid.length;
+  if (!isValidSoFar(grid, hRel, vRel)) return 0;
   let solutions = 0;
-
-  const backtrack = (r: number, c: number): void => {
+  const backtrack = (): void => {
     if (solutions >= limit) return;
-    if (r === N) {
+    let bestR = -1;
+    let bestC = -1;
+    let bestValues: Cell[] = [];
+    // Choose the most constrained empty cell; singleton domains propagate
+    // forced placements before branching on less constrained cells.
+    search: for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        if (grid[r][c] !== EMPTY) continue;
+        const values: Cell[] = [];
+        for (const value of [ORANGE, BLUE] as Cell[]) {
+          grid[r][c] = value;
+          if (okAt(grid, hRel, vRel, r, c)) values.push(value);
+        }
+        grid[r][c] = EMPTY;
+        if (values.length === 0) return;
+        if (bestR === -1 || values.length < bestValues.length) {
+          bestR = r;
+          bestC = c;
+          bestValues = values;
+          if (values.length === 1) break search;
+        }
+      }
+    }
+    if (bestR === -1) {
       solutions++;
       return;
     }
-    const nextR = r + Math.floor((c + 1) / N);
-    const nextC = (c + 1) % N;
-
-    if (grid[r][c] !== EMPTY) {
-      if (okAt(grid, hRel, vRel, r, c)) backtrack(nextR, nextC);
-      return;
-    }
-    for (const val of [ORANGE, BLUE] as Cell[]) {
-      grid[r][c] = val;
-      if (okAt(grid, hRel, vRel, r, c)) backtrack(nextR, nextC);
-      grid[r][c] = EMPTY as Cell;
+    for (const value of bestValues) {
+      grid[bestR][bestC] = value;
+      backtrack();
+      grid[bestR][bestC] = EMPTY;
+      if (solutions >= limit) break;
     }
   };
-
-  backtrack(0, 0);
+  backtrack();
   return solutions;
 }
 
@@ -166,8 +187,8 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
-function generateFullSolution(): Grid {
-  const grid = makeGrid();
+function generateFullSolution(N: GridSize): Grid {
+  const grid = makeGrid(N);
   const emptyH: HRel = Array.from({ length: N }, () => Array<Rel>(N - 1).fill(NONE as Rel));
   const emptyV: VRel = Array.from({ length: N - 1 }, () => Array<Rel>(N).fill(NONE as Rel));
 
@@ -183,24 +204,27 @@ function generateFullSolution(): Grid {
     return false;
   };
 
-  fill(0, 0);
+  if (!fill(0, 0)) throw new Error("Could not generate a complete Tango solution.");
   return grid;
 }
 
 type PoolItem = ["cell" | "h" | "v", number, number];
 
-export function generateTango(): TangoPuzzle {
-  const solution = generateFullSolution();
+export function generateTango(N: GridSize = 6): TangoPuzzle {
+  if (N !== 6 && N !== 8) throw new Error("Choose a 6×6 or 8×8 grid.");
+  const solution = generateFullSolution(N);
   const grid: Grid = solution.map((row) => [...row]);
 
   const hRel: HRel = Array.from({ length: N }, (_, r) =>
-    Array.from({ length: N - 1 }, (_, c) =>
-      (solution[r][c] === solution[r][c + 1] ? EQUAL : NOT_EQUAL) as Rel,
+    Array.from(
+      { length: N - 1 },
+      (_, c) => (solution[r][c] === solution[r][c + 1] ? EQUAL : NOT_EQUAL) as Rel,
     ),
   );
   const vRel: VRel = Array.from({ length: N - 1 }, (_, r) =>
-    Array.from({ length: N }, (_, c) =>
-      (solution[r][c] === solution[r + 1][c] ? EQUAL : NOT_EQUAL) as Rel,
+    Array.from(
+      { length: N },
+      (_, c) => (solution[r][c] === solution[r + 1][c] ? EQUAL : NOT_EQUAL) as Rel,
     ),
   );
 
