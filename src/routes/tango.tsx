@@ -14,6 +14,7 @@ import { TangoGame } from "@/components/TangoGame";
 import { TangoWalkthrough } from "@/components/TangoWalkthrough";
 import { CopyImageButton } from "@/components/CopyImageButton";
 import { Button } from "@/components/ui/button";
+import { exportPuzzle, MAX_PUZZLE_FILE_BYTES } from "@/lib/tango-files";
 
 export const Route = createFileRoute("/tango")({
   head: () => ({
@@ -40,6 +41,9 @@ function TangoPage() {
   const [method, setMethod] = useState<DiggingMethod>(DEFAULT_DIGGING_METHOD);
   const [state, setState] = useState<TangoPuzzle | null>(null);
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const importRequest = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [walking, setWalking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +53,7 @@ function TangoPage() {
 
   useEffect(
     () => () => {
+      importRequest.current++;
       workerRef.current?.terminate();
       workerRef.current = null;
     },
@@ -56,9 +61,61 @@ function TangoPage() {
   );
 
   const cancel = () => {
+    importRequest.current++;
     workerRef.current?.terminate();
     workerRef.current = null;
     setLoading(false);
+    setImporting(false);
+  };
+
+  const loadFile = async (file: File) => {
+    cancel();
+    setError(null);
+    if (file.size > MAX_PUZZLE_FILE_BYTES) {
+      setError("Puzzle files must be smaller than 64 KB.");
+      return;
+    }
+    const request = importRequest.current;
+    setLoading(true);
+    setImporting(true);
+    try {
+      const text = await file.text();
+      if (request !== importRequest.current) return;
+      const worker = new Worker(new URL("../lib/tango-import.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      workerRef.current = worker;
+      worker.onmessage = (event: MessageEvent<GenerationResult>) => {
+        if (workerRef.current !== worker || request !== importRequest.current) return;
+        if (event.data.ok) {
+          setState(event.data.puzzle);
+          setSize(event.data.puzzle.grid.length as GridSize);
+        } else setError(event.data.error);
+        cancel();
+      };
+      worker.onerror = worker.onmessageerror = () => {
+        if (workerRef.current !== worker) return;
+        setError("Could not validate this puzzle file. Please try again.");
+        cancel();
+      };
+      worker.postMessage(text);
+    } catch {
+      if (request !== importRequest.current) return;
+      setError("Could not read the puzzle file or start validation.");
+      cancel();
+    }
+  };
+
+  const saveFile = () => {
+    if (!state) return;
+    const url = URL.createObjectURL(new Blob([exportPuzzle(state)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `tango-${state.grid.length}x${state.grid.length}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const run = () => {
@@ -174,11 +231,35 @@ function TangoPage() {
               </select>
             </div>
             <Button onClick={run} disabled={loading}>
-              {loading ? "Generating…" : state ? "Generate new puzzle" : "Generate puzzle"}
+              {loading && !importing
+                ? "Generating…"
+                : state
+                  ? "Generate new puzzle"
+                  : "Generate puzzle"}
             </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              aria-label="Import puzzle file"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void loadFile(file);
+              }}
+            />
+            <Button variant="outline" disabled={loading} onClick={() => fileRef.current?.click()}>
+              Import grid
+            </Button>
+            {state && (
+              <Button variant="outline" disabled={loading} onClick={saveFile}>
+                Export grid
+              </Button>
+            )}
             {loading && (
               <Button variant="outline" onClick={cancel}>
-                Cancel generation
+                {importing ? "Cancel import" : "Cancel generation"}
               </Button>
             )}
           </div>
@@ -188,9 +269,11 @@ function TangoPage() {
               : "Removes one random clue at a time, without requiring a symmetric layout."}
           </p>
           <p role="status" className="text-sm text-muted-foreground">
-            {loading
-              ? "Generating a uniquely solvable puzzle… You can change settings or cancel anytime."
-              : "Every generated puzzle has exactly one solution."}
+            {importing
+              ? "Checking imported clues and verifying a unique solution…"
+              : loading
+                ? "Generating a uniquely solvable puzzle… You can change settings or cancel anytime."
+                : "Every generated puzzle has exactly one solution."}
           </p>
           {error && (
             <p role="alert" className="text-sm text-destructive">

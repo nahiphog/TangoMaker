@@ -20,6 +20,7 @@ interface Props {
   conflicts?: Set<string>;
   highlights?: Set<string>;
   activeCell?: string;
+  activeCells?: Set<string>;
   describeCells?: boolean;
 }
 
@@ -39,6 +40,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
     conflicts,
     highlights,
     activeCell,
+    activeCells,
     describeCells,
   },
   ref,
@@ -71,7 +73,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                   data-col={c}
                   role={describeCells ? "img" : undefined}
                   style={
-                    activeCell === `${r},${c}`
+                    activeCell === `${r},${c}` || activeCells?.has(`${r},${c}`)
                       ? { outline: "3px dashed currentColor", outlineOffset: "-5px" }
                       : undefined
                   }

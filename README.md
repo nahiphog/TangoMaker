@@ -9,7 +9,8 @@ A standalone Tango puzzle generator built with React, TypeScript, and TanStack S
 - View the puzzle and complete solution side by side.
 - Choose **Play this grid** to solve it interactively with locked clues, keyboard/touch input, live rule feedback, undo, reset, and progress checking. The answer is hidden during play; leaving play clears your entries.
 - Open **Solving techniques** for illustrated examples, or use **Show a hint → Explain → Apply move** for an undoable deduction. Hints use only visible clues and current entries, never the stored answer. Analysis runs in a cancellable worker and is discarded when the board changes.
-- Choose **Solution walkthrough** from the generator or play screen for a separate interactive replay from the original clues to completion. Each Next click places one cell and highlights its evidence; use Previous, autoplay with speed control, Restart, or the replay slider. A two-column technique tally counts all prepared moves, including search-based eliminations. Play entries are preserved. Preparation streams in a cancellable worker. When the six teaching techniques stall, the replay explicitly labels a search-based elimination (internal backtracking branches are not shown), rather than silently reading the stored answer.
+- Choose **Solution walkthrough** from the generator or play screen for a separate interactive replay from the original clues to completion. Each Next click fills one or more new cells, combining consecutive deductions of the same technique and retaining their explanations; use Previous, autoplay with speed control, Restart, or the replay slider. A two-column technique tally counts grouped steps, including search-based eliminations. Play entries are preserved. Preparation streams in a cancellable worker. When the six teaching techniques stall, the replay explicitly labels a search-based elimination (internal backtracking branches are not shown), rather than silently reading the stored answer.
+- Use **Export grid** to save a TangoMaker JSON file and **Import grid** to reopen it. Files preserve the original cell and relation clues, not play progress or a stored answer. Import validates the format and verifies exactly one solution in a cancellable worker; invalid, ambiguous, or unverified files leave the current puzzle unchanged.
 - Copy either grid as an image.
 - Switch between light and dark themes.
 - Generate in a background Web Worker, with cancellation and safe grid-size switching.
@@ -62,3 +63,7 @@ This prerenders the Tango page into `dist/client/tango/index.html`, generates a 
 - `src/components/CopyImageButton.tsx`: image export.
 
 Adapted from the owner's `nahiphog/puzzle-making-factory` project, originally created with Lovable. This repository contains only Tango; it is not configured with the original project's Lovable connection.
+
+## Puzzle files
+
+The version 1 JSON format has `format: "TangoMaker"`, `version: 1`, `size`, `grid`, `hRel`, and `vRel`. Cell values are 0 (blank), 1 (orange), and 2 (blue). Relations use 0 (none), 1 (=), and 2 (×). `grid` is N×N, `hRel` is N×(N−1), and `vRel` is (N−1)×N. Supported sizes are 6, 8, 10, and 12. Files are limited to 64 KB. Uniqueness and answer reconstruction have a 15-second search budget and a node cap; incomplete searches are rejected rather than assumed unique. The solution is reconstructed from the clues on import.

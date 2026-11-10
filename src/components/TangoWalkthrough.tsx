@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { TangoPuzzle } from "@/lib/tango";
-import type { WalkthroughEvent, WalkthroughStep } from "@/lib/tango-walkthrough";
+import type { WalkthroughEvent, GroupedWalkthroughStep } from "@/lib/tango-walkthrough";
 import { TangoGrid } from "./TangoGrid";
 import { Button } from "./ui/button";
 
 export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () => void }) {
-  const [steps, setSteps] = useState<WalkthroughStep[]>([]);
+  const [steps, setSteps] = useState<GroupedWalkthroughStep[]>([]);
   const [phase, setPhase] = useState(0);
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(2500);
@@ -114,14 +114,14 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
             givens={puzzle.grid}
             hRel={puzzle.hRel}
             vRel={puzzle.vRel}
-            label={phase === 0 ? "Original clues" : `After move ${phase}`}
+            label={phase === 0 ? "Original clues" : `After step ${phase}`}
             highlights={new Set(step?.cells.map((cell) => cell.join(",")) ?? [])}
-            activeCell={step?.target.join(",")}
+            activeCells={new Set(step?.placements.map((item) => item.target.join(",")) ?? [])}
             describeCells
           />
           <p className="text-center text-sm">
             {filled} / {board.length ** 2} cells filled · outlined cells explain the move; the
-            dashed outline marks its target.
+            dashed outlines mark the newly filled cells.
           </p>
         </div>
         <div className="space-y-4">
@@ -132,31 +132,44 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
               </h2>
             ) : (
               <h2 className="text-xl font-semibold">
-                {step ? `Move ${phase}: ${step.title}` : "Start with the clues"}
+                {step ? `Step ${phase}: ${step.title}` : "Start with the clues"}
               </h2>
             )}
             {step ? (
               <>
                 {step.search && (
                   <p className="font-semibold text-amber-700 dark:text-amber-300">
-                    Computer search used for this move
+                    Computer search used for this step
                   </p>
                 )}
-                <p className="text-sm">{step.explanation}</p>
                 <p className="text-sm font-medium">
-                  Row {step.target[0] + 1}, column {step.target[1] + 1}: placed{" "}
-                  {step.value === 1 ? "orange" : "blue"}.
+                  {step.placements.length} new cell{step.placements.length === 1 ? "" : "s"} filled.
                 </p>
+                <ol
+                  className="max-h-64 space-y-2 overflow-y-auto text-sm"
+                  aria-label="Deductions in this step"
+                >
+                  {step.placements.map((item) => (
+                    <li key={item.target.join(",")}>
+                      <strong>
+                        R{item.target[0] + 1} C{item.target[1] + 1}:{" "}
+                        {item.value === 1 ? "orange" : "blue"}.
+                      </strong>{" "}
+                      {item.explanation}
+                    </li>
+                  ))}
+                </ol>
               </>
             ) : (
               <p className="text-sm">
-                Next places one cell and shows why it belongs there. Use Autoplay to watch the
-                solution unfold, or pause, rewind, and drag the replay position at any time.
+                Next fills one or more cells, grouping consecutive deductions that use the same
+                technique. Use Autoplay to watch the solution unfold, or pause, rewind, and drag the
+                replay position at any time.
               </p>
             )}
             {finished && (
               <p className="text-sm">
-                All cells satisfy the rules. {steps.filter((item) => item.search).length} move(s)
+                All cells satisfy the rules. {steps.filter((item) => item.search).length} step(s)
                 required search beyond the six teaching techniques.
               </p>
             )}
@@ -182,7 +195,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
           <div className="space-y-2">
             <label htmlFor="walkthrough-position" className="block text-sm">
               Replay position: {phase} / {lastPhase}
-              {status === "building" ? " (preparing more moves…)" : ""}
+              {status === "building" ? " (preparing more steps…)" : ""}
             </label>
             <input
               id="walkthrough-position"
@@ -211,7 +224,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
             {status === "building" && (
               <>
                 <p>
-                  Preparing the walkthrough in the background. {steps.length} moves ready; you can
+                  Preparing the walkthrough in the background. {steps.length} steps ready; you can
                   already replay them.
                 </p>
                 <Button variant="outline" onClick={stop}>
@@ -220,7 +233,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
               </>
             )}
             {status === "cancelled" && (
-              <p>Preparation cancelled. The available moves remain replayable.</p>
+              <p>Preparation cancelled. The available steps remain replayable.</p>
             )}
             {error && <p className="text-destructive">{error}</p>}
             {(status === "cancelled" || status === "error") && (
@@ -231,7 +244,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
           </div>
           <table className="w-full text-sm">
             <caption className="mb-2 text-left font-semibold">
-              Technique tally — {status === "complete" ? "entire walkthrough" : "prepared moves"}
+              Technique tally — {status === "complete" ? "entire walkthrough" : "prepared steps"}
             </caption>
             <thead>
               <tr className="border-b">
@@ -255,7 +268,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
               {!steps.length && (
                 <tr>
                   <td colSpan={2} className="py-2 text-muted-foreground">
-                    No moves prepared yet.
+                    No steps prepared yet.
                   </td>
                 </tr>
               )}
