@@ -1,0 +1,279 @@
+import { useEffect, useRef, useState } from "react";
+import type { TangoPuzzle } from "@/lib/tango";
+import type { WalkthroughEvent, WalkthroughStep } from "@/lib/tango-walkthrough";
+import { TangoGrid } from "./TangoGrid";
+import { Button } from "./ui/button";
+
+export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () => void }) {
+  const [steps, setSteps] = useState<WalkthroughStep[]>([]);
+  const [phase, setPhase] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [speed, setSpeed] = useState(2500);
+  const [status, setStatus] = useState<"building" | "complete" | "cancelled" | "error">("building");
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [prediction, setPrediction] = useState("");
+  const workerRef = useRef<Worker | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    let worker: Worker;
+    try {
+      worker = new Worker(new URL("../lib/tango-walkthrough.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      workerRef.current = worker;
+      worker.onmessage = (event: MessageEvent<WalkthroughEvent>) => {
+        if (workerRef.current !== worker) return;
+        const message = event.data;
+        if (message.kind === "step") setSteps((previous) => [...previous, message.step]);
+        else {
+          setStatus(message.kind === "complete" ? "complete" : "error");
+          if (message.kind === "error") {
+            setError(message.message);
+            setRunning(false);
+          }
+          worker.terminate();
+          workerRef.current = null;
+        }
+      };
+      worker.onerror = () => {
+        if (workerRef.current !== worker) return;
+        setError("Could not prepare the walkthrough. Please retry.");
+        setStatus("error");
+        setRunning(false);
+        worker.terminate();
+        workerRef.current = null;
+      };
+      worker.postMessage({ board: puzzle.grid, hRel: puzzle.hRel, vRel: puzzle.vRel });
+    } catch {
+      setError(
+        "Could not start background analysis. Please retry in a browser with worker support.",
+      );
+      setStatus("error");
+    }
+    return () => {
+      worker?.terminate();
+      if (workerRef.current === worker) workerRef.current = null;
+    };
+  }, [puzzle, attempt]);
+
+  // Odd phases explain on the board before a move; even phases reveal that move.
+  const lastPhase = steps.length * 2;
+  const finished = status === "complete" && phase === lastPhase;
+  useEffect(() => {
+    if (!running || phase >= lastPhase) return;
+    const timer = setTimeout(() => {
+      setPhase((current) => current + 1);
+      setPrediction("");
+    }, speed);
+    return () => clearTimeout(timer);
+  }, [running, phase, lastPhase, speed]);
+  const step = phase ? steps[Math.floor((phase - 1) / 2)] : undefined;
+  const revealed = phase > 0 && phase % 2 === 0;
+  const board = step ? (revealed ? step.after : step.before) : puzzle.grid;
+  const filled = board.flat().filter(Boolean).length;
+  const navigate = (next: number) => {
+    setRunning(false);
+    setPrediction("");
+    setPhase(next);
+  };
+  const stop = () => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setStatus("cancelled");
+    setRunning(false);
+  };
+  const retry = () => {
+    setSteps([]);
+    setPhase(0);
+    setRunning(false);
+    setPrediction("");
+    setError("");
+    setStatus("building");
+    setAttempt((current) => current + 1);
+  };
+
+  return (
+    <section
+      className="mx-auto flex w-full max-w-5xl flex-col gap-5"
+      aria-label="Solution walkthrough"
+    >
+      <header className="space-y-2 text-center">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl font-semibold">
+          Solution walkthrough
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Watch the board change from its original clues to the completed puzzle. Your play entries
+          are preserved.
+        </p>
+      </header>
+      <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+        <div className="space-y-3 md:sticky md:top-20">
+          <TangoGrid
+            grid={board}
+            givens={puzzle.grid}
+            hRel={puzzle.hRel}
+            vRel={puzzle.vRel}
+            label={phase === 0 ? "Original clues" : revealed ? "After the move" : "Before the move"}
+            highlights={new Set(step?.cells.map((cell) => cell.join(",")) ?? [])}
+            activeCell={step?.target.join(",")}
+            describeCells
+          />
+          <p className="text-center text-sm">
+            {filled} / {board.length ** 2} cells filled · outlined cells explain the move; the
+            dashed outline marks its target.
+          </p>
+        </div>
+        <div className="space-y-4">
+          <div className="min-h-48 space-y-3 rounded-lg border p-4" aria-live="polite">
+            {finished ? (
+              <h2 className="text-xl font-semibold text-green-600 dark:text-green-400">
+                Puzzle solved
+              </h2>
+            ) : (
+              <h2 className="text-xl font-semibold">
+                {step ? `Move ${Math.ceil(phase / 2)}: ${step.title}` : "Start with the clues"}
+              </h2>
+            )}
+            {step ? (
+              <>
+                {step.search && (
+                  <p className="font-semibold text-amber-700 dark:text-amber-300">
+                    Computer search used for this move
+                  </p>
+                )}
+                <p className="text-sm">{step.explanation}</p>
+                <p className="text-sm font-medium">
+                  Row {step.target[0] + 1}, column {step.target[1] + 1}:{" "}
+                  {revealed
+                    ? `placed ${step.value === 1 ? "orange" : "blue"}.`
+                    : "watch this cell."}
+                </p>
+                {!revealed && (
+                  <div className="space-y-2">
+                    <p className="text-sm">Try the move yourself, or choose Show move.</p>
+                    <div className="flex gap-2">
+                      {([1, 2] as const).map((value) => (
+                        <Button
+                          key={value}
+                          variant="outline"
+                          onClick={() => {
+                            setRunning(false);
+                            if (value === step.value) {
+                              setPhase((current) => current + 1);
+                              setPrediction("Correct — that is the forced color.");
+                            } else
+                              setPrediction(
+                                "That color does not follow this deduction. Review the explanation and try again.",
+                              );
+                          }}
+                        >
+                          {value === 1 ? "Orange" : "Blue"}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {prediction && (
+                  <p className="text-sm" role="status">
+                    {prediction}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm">
+                Each move has two moments: inspect the highlighted clues, then see the cell filled.
+                Use Next or Autoplay to begin. You can pause, rewind, or drag the replay position at
+                any time.
+              </p>
+            )}
+            {finished && (
+              <p className="text-sm">
+                All cells satisfy the rules. {steps.filter((item) => item.search).length} move(s)
+                required search beyond the six teaching techniques.
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" disabled={phase === 0} onClick={() => navigate(phase - 1)}>
+              Previous
+            </Button>
+            <Button disabled={phase >= lastPhase} onClick={() => navigate(phase + 1)}>
+              {phase % 2 ? "Show move" : "Next"}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={finished || (status !== "building" && phase >= lastPhase)}
+              onClick={() => setRunning((current) => !current)}
+            >
+              {running && !finished ? "Pause" : "Autoplay"}
+            </Button>
+            <Button variant="outline" disabled={phase === 0} onClick={() => navigate(0)}>
+              Restart
+            </Button>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="walkthrough-position" className="block text-sm">
+              Replay position: {phase} / {lastPhase}
+              {status === "building" ? " (preparing more moves…)" : ""}
+            </label>
+            <input
+              id="walkthrough-position"
+              className="w-full accent-primary"
+              type="range"
+              min={0}
+              max={Math.max(1, lastPhase)}
+              value={phase}
+              disabled={!lastPhase}
+              onChange={(event) => navigate(Math.min(lastPhase, Number(event.target.value)))}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              Playback speed
+              <select
+                className="rounded border bg-background p-2"
+                value={speed}
+                onChange={(event) => setSpeed(Number(event.target.value))}
+              >
+                <option value={4000}>Slow</option>
+                <option value={2500}>Normal</option>
+                <option value={1000}>Fast</option>
+              </select>
+            </label>
+          </div>
+          <div className="space-y-2 text-sm" role="status">
+            {status === "building" && (
+              <>
+                <p>
+                  Preparing the walkthrough in the background. {steps.length} moves ready; you can
+                  already replay them.
+                </p>
+                <Button variant="outline" onClick={stop}>
+                  Cancel preparation
+                </Button>
+              </>
+            )}
+            {status === "cancelled" && (
+              <p>Preparation cancelled. The available moves remain replayable.</p>
+            )}
+            {error && <p className="text-destructive">{error}</p>}
+            {(status === "cancelled" || status === "error") && (
+              <Button variant="outline" onClick={retry}>
+                Prepare again
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Logical techniques come first. If they stall, an explicitly labelled backtracking check
+            eliminates a candidate. The stored answer is never used to build this replay.
+          </p>
+          <Button variant="secondary" onClick={onExit}>
+            Close walkthrough
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}

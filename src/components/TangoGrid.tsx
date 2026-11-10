@@ -19,6 +19,8 @@ interface Props {
   onCellChange?: (r: number, c: number, value: Cell) => void;
   conflicts?: Set<string>;
   highlights?: Set<string>;
+  activeCell?: string;
+  describeCells?: boolean;
 }
 
 const COLORS = {
@@ -27,7 +29,18 @@ const COLORS = {
 };
 
 export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
-  { grid, givens, hRel, vRel, label, onCellChange, conflicts, highlights },
+  {
+    grid,
+    givens,
+    hRel,
+    vRel,
+    label,
+    onCellChange,
+    conflicts,
+    highlights,
+    activeCell,
+    describeCells,
+  },
   ref,
 ) {
   const N = grid.length;
@@ -56,8 +69,14 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                   disabled={onCellChange ? isGiven : undefined}
                   data-row={r}
                   data-col={c}
+                  role={describeCells ? "img" : undefined}
+                  style={
+                    activeCell === `${r},${c}`
+                      ? { outline: "3px dashed currentColor", outlineOffset: "-5px" }
+                      : undefined
+                  }
                   aria-label={
-                    onCellChange
+                    onCellChange || describeCells
                       ? `Row ${r + 1}, column ${c + 1}: ${val === 0 ? "blank" : val === 1 ? "orange" : "blue"}${isGiven ? ", given" : ""}${invalid ? ", conflict" : ""}${highlighted ? ", hint" : ""}`
                       : undefined
                   }
@@ -118,7 +137,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                       style={{
                         backgroundColor: color.fill,
                         border: `${isGiven ? 2.5 : 1.5}px ${isGiven ? "solid" : "dashed"} ${color.stroke}`,
-                        opacity: isGiven || onCellChange ? 1 : 0.45,
+                        opacity: isGiven || onCellChange || describeCells ? 1 : 0.45,
                       }}
                     />
                   )}

@@ -27,18 +27,27 @@ const color = (value: Cell) => (value === 1 ? "orange" : "blue");
 const where = ([r, c]: Position) => `row ${r + 1}, column ${c + 1}`;
 
 // Enumerate a single line only. No full-board search or hidden solution is used.
+// A walkthrough analyzes many boards of the same size in one worker. Reuse
+// the rule-valid universe; entries and relations are still filtered each time.
+const patternCache = new Map<number, Cell[][]>();
 function linePatterns(values: Cell[], relations: number[]) {
   const n = values.length;
-  const patterns: Cell[][] = [];
-  for (let mask = 0; mask < 2 ** n; mask++) {
-    const row = Array.from({ length: n }, (_, i) => (1 + ((mask >> i) & 1)) as Cell);
-    if (row.filter((v) => v === 1).length !== n / 2) continue;
-    if (row.some((v, i) => values[i] && values[i] !== v)) continue;
-    if (row.some((v, i) => i > 1 && v === row[i - 1] && v === row[i - 2])) continue;
-    if (relations.some((rel, i) => rel && (row[i] === row[i + 1]) !== (rel === 1))) continue;
-    patterns.push(row);
+  let patterns = patternCache.get(n);
+  if (!patterns) {
+    patterns = [];
+    for (let mask = 0; mask < 2 ** n; mask++) {
+      const row = Array.from({ length: n }, (_, i) => (1 + ((mask >> i) & 1)) as Cell);
+      if (row.filter((v) => v === 1).length !== n / 2) continue;
+      if (row.some((v, i) => i > 1 && v === row[i - 1] && v === row[i - 2])) continue;
+      patterns.push(row);
+    }
+    patternCache.set(n, patterns);
   }
-  return patterns;
+  return patterns.filter(
+    (row) =>
+      !row.some((v, i) => values[i] && values[i] !== v) &&
+      !relations.some((rel, i) => rel && (row[i] === row[i + 1]) !== (rel === 1)),
+  );
 }
 
 export function findHint({ board, hRel, vRel }: HintInput): HintResult {
