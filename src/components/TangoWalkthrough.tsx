@@ -12,7 +12,6 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
   const [status, setStatus] = useState<"building" | "complete" | "cancelled" | "error">("building");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [prediction, setPrediction] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -60,24 +59,23 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
     };
   }, [puzzle, attempt]);
 
-  // Odd phases explain on the board before a move; even phases reveal that move.
-  const lastPhase = steps.length * 2;
+  // Each replay position applies one complete move.
+  const lastPhase = steps.length;
   const finished = status === "complete" && phase === lastPhase;
   useEffect(() => {
     if (!running || phase >= lastPhase) return;
     const timer = setTimeout(() => {
       setPhase((current) => current + 1);
-      setPrediction("");
     }, speed);
     return () => clearTimeout(timer);
   }, [running, phase, lastPhase, speed]);
-  const step = phase ? steps[Math.floor((phase - 1) / 2)] : undefined;
-  const revealed = phase > 0 && phase % 2 === 0;
-  const board = step ? (revealed ? step.after : step.before) : puzzle.grid;
+  const step = phase ? steps[phase - 1] : undefined;
+  const board = step ? step.after : puzzle.grid;
+  const tally = new Map<string, number>();
+  for (const item of steps) tally.set(item.title, (tally.get(item.title) ?? 0) + 1);
   const filled = board.flat().filter(Boolean).length;
   const navigate = (next: number) => {
     setRunning(false);
-    setPrediction("");
     setPhase(next);
   };
   const stop = () => {
@@ -90,7 +88,6 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
     setSteps([]);
     setPhase(0);
     setRunning(false);
-    setPrediction("");
     setError("");
     setStatus("building");
     setAttempt((current) => current + 1);
@@ -117,7 +114,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
             givens={puzzle.grid}
             hRel={puzzle.hRel}
             vRel={puzzle.vRel}
-            label={phase === 0 ? "Original clues" : revealed ? "After the move" : "Before the move"}
+            label={phase === 0 ? "Original clues" : `After move ${phase}`}
             highlights={new Set(step?.cells.map((cell) => cell.join(",")) ?? [])}
             activeCell={step?.target.join(",")}
             describeCells
@@ -135,7 +132,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
               </h2>
             ) : (
               <h2 className="text-xl font-semibold">
-                {step ? `Move ${Math.ceil(phase / 2)}: ${step.title}` : "Start with the clues"}
+                {step ? `Move ${phase}: ${step.title}` : "Start with the clues"}
               </h2>
             )}
             {step ? (
@@ -147,47 +144,14 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
                 )}
                 <p className="text-sm">{step.explanation}</p>
                 <p className="text-sm font-medium">
-                  Row {step.target[0] + 1}, column {step.target[1] + 1}:{" "}
-                  {revealed
-                    ? `placed ${step.value === 1 ? "orange" : "blue"}.`
-                    : "watch this cell."}
+                  Row {step.target[0] + 1}, column {step.target[1] + 1}: placed{" "}
+                  {step.value === 1 ? "orange" : "blue"}.
                 </p>
-                {!revealed && (
-                  <div className="space-y-2">
-                    <p className="text-sm">Try the move yourself, or choose Show move.</p>
-                    <div className="flex gap-2">
-                      {([1, 2] as const).map((value) => (
-                        <Button
-                          key={value}
-                          variant="outline"
-                          onClick={() => {
-                            setRunning(false);
-                            if (value === step.value) {
-                              setPhase((current) => current + 1);
-                              setPrediction("Correct — that is the forced color.");
-                            } else
-                              setPrediction(
-                                "That color does not follow this deduction. Review the explanation and try again.",
-                              );
-                          }}
-                        >
-                          {value === 1 ? "Orange" : "Blue"}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {prediction && (
-                  <p className="text-sm" role="status">
-                    {prediction}
-                  </p>
-                )}
               </>
             ) : (
               <p className="text-sm">
-                Each move has two moments: inspect the highlighted clues, then see the cell filled.
-                Use Next or Autoplay to begin. You can pause, rewind, or drag the replay position at
-                any time.
+                Next places one cell and shows why it belongs there. Use Autoplay to watch the
+                solution unfold, or pause, rewind, and drag the replay position at any time.
               </p>
             )}
             {finished && (
@@ -202,7 +166,7 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
               Previous
             </Button>
             <Button disabled={phase >= lastPhase} onClick={() => navigate(phase + 1)}>
-              {phase % 2 ? "Show move" : "Next"}
+              Next
             </Button>
             <Button
               variant="secondary"
@@ -265,6 +229,46 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
               </Button>
             )}
           </div>
+          <table className="w-full text-sm">
+            <caption className="mb-2 text-left font-semibold">
+              Technique tally — {status === "complete" ? "entire walkthrough" : "prepared moves"}
+            </caption>
+            <thead>
+              <tr className="border-b">
+                <th scope="col" className="py-2 text-left">
+                  Technique name
+                </th>
+                <th scope="col" className="py-2 text-right">
+                  Steps
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...tally].map(([name, count]) => (
+                <tr key={name} className="border-b">
+                  <th scope="row" className="py-2 text-left font-normal">
+                    {name}
+                  </th>
+                  <td className="py-2 text-right tabular-nums">{count}</td>
+                </tr>
+              ))}
+              {!steps.length && (
+                <tr>
+                  <td colSpan={2} className="py-2 text-muted-foreground">
+                    No moves prepared yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" className="pt-2 text-left">
+                  Total
+                </th>
+                <td className="pt-2 text-right font-semibold tabular-nums">{steps.length}</td>
+              </tr>
+            </tfoot>
+          </table>
           <p className="text-xs text-muted-foreground">
             Logical techniques come first. If they stall, an explicitly labelled backtracking check
             eliminates a candidate. The stored answer is never used to build this replay.
