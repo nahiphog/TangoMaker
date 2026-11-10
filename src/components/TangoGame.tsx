@@ -3,6 +3,8 @@ import type { Cell, Grid, TangoPuzzle } from "@/lib/tango";
 import { checkProgress, checkRules, placeCell } from "@/lib/tango-play";
 import { TangoGrid } from "./TangoGrid";
 import { Button } from "./ui/button";
+import { TangoHints, TangoTechniques } from "./TangoHints";
+import type { Position } from "@/lib/tango-hints";
 
 export function TangoGame({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () => void }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -11,11 +13,13 @@ export function TangoGame({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () 
   }, []);
   const [history, setHistory] = useState<Grid[]>([puzzle.grid.map((row) => [...row])]);
   const [checked, setChecked] = useState(false);
+  const [highlight, setHighlight] = useState<{ board: Grid; cells: Position[] } | null>(null);
   const board = history[history.length - 1];
   const rules = checkRules(board, puzzle);
   const progress = checkProgress(board, puzzle.solution);
   const size = board.length;
   const change = (r: number, c: number, value: Cell) => {
+    setHighlight(null);
     setHistory((previous) => {
       const current = previous[previous.length - 1];
       const next = placeCell(current, puzzle.grid, r, c, value);
@@ -56,6 +60,9 @@ export function TangoGame({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () 
         label="Your puzzle"
         onCellChange={change}
         conflicts={new Set([...rules.conflicts, ...(checked ? progress.mistakes : [])])}
+        highlights={
+          new Set(highlight?.board === board ? highlight.cells.map((cell) => cell.join(",")) : [])
+        }
       />
       <p
         role="status"
@@ -78,6 +85,7 @@ export function TangoGame({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () 
           onClick={() => {
             setHistory((previous) => previous.slice(0, -1));
             setChecked(false);
+            setHighlight(null);
           }}
         >
           Undo
@@ -88,6 +96,7 @@ export function TangoGame({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () 
           onClick={() => {
             setHistory([puzzle.grid.map((row) => [...row])]);
             setChecked(false);
+            setHighlight(null);
           }}
         >
           Reset puzzle
@@ -96,6 +105,13 @@ export function TangoGame({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () 
           Back to generator
         </Button>
       </div>
+      <TangoHints
+        key={JSON.stringify(board)}
+        input={{ board, hRel: puzzle.hRel, vRel: puzzle.vRel }}
+        onHighlight={(cells) => setHighlight({ board, cells })}
+        onApply={change}
+      />
+      <TangoTechniques size={size} />
       <p className="text-xs text-muted-foreground">
         Leaving play mode clears your entries. The generator shows the solution.
       </p>
