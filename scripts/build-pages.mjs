@@ -9,6 +9,7 @@ if (build.status !== 0) process.exit(build.status ?? 1);
 
 // A real HTML entry at /tango/ supports direct visits and refreshes on Pages.
 await access("dist/client/tango/index.html");
+await access("dist/client/techniques/index.html");
 await writeFile(
   "dist/client/index.html",
   `<!doctype html>

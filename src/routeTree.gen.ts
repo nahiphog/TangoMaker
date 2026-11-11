@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TangoRouteImport } from './routes/tango'
+import { Route as TechniquesRouteImport } from './routes/techniques'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const TangoRoute = TangoRouteImport.update({
   path: '/tango',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TechniquesRoute = TechniquesRouteImport.update({
+  id: '/techniques',
+  path: '/techniques',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/tango': typeof TangoRoute
+  '/techniques': typeof TechniquesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/tango': typeof TangoRoute
+  '/techniques': typeof TechniquesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/tango': typeof TangoRoute
+  '/techniques': typeof TechniquesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/tango'
+  fullPaths: '/' | '/tango' | '/techniques'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/tango'
-  id: '__root__' | '/' | '/tango'
+  to: '/' | '/tango' | '/techniques'
+  id: '__root__' | '/' | '/tango' | '/techniques'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TangoRoute: typeof TangoRoute
+  TechniquesRoute: typeof TechniquesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TangoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/techniques': {
+      id: '/techniques'
+      path: '/techniques'
+      fullPath: '/techniques'
+      preLoaderRoute: typeof TechniquesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TangoRoute: TangoRoute,
+  TechniquesRoute: TechniquesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

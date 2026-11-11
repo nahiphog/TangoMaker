@@ -16,7 +16,7 @@ export default defineConfig({
             crawlLinks: false,
             failOnError: true,
           },
-          pages: [{ path: "/tango" }],
+          pages: [{ path: "/tango" }, { path: "/techniques" }],
         }
       : {}),
   },

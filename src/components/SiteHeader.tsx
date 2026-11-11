@@ -59,7 +59,7 @@ function AboutButton() {
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
         <Link
           to="/tango"
           className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground"
@@ -74,6 +74,12 @@ export function SiteHeader() {
           Tango Generator
         </Link>
         <div className="flex items-center gap-1">
+          <Link
+            to="/techniques"
+            className="rounded-md px-2 py-2 text-sm font-medium hover:bg-accent"
+          >
+            Techniques
+          </Link>
           <AboutButton />
           <ThemeToggle />
         </div>
