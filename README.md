@@ -8,8 +8,6 @@ A standalone Tango puzzle generator built with React, TypeScript, and TanStack S
 - Choose rotational-pair digging (default) for a 180° symmetric clue layout, or single-clue digging.
 - View the puzzle and complete solution side by side.
 - Choose **Play this grid** to solve it interactively with locked clues, keyboard/touch input, live rule feedback, undo, reset, and progress checking. The answer is hidden during play; leaving play clears your entries.
-- Open **Solving techniques** for illustrated examples, or use **Show a hint → Explain → Apply move** for an undoable deduction. Hints use only visible clues and current entries, never the stored answer. Analysis runs in a cancellable worker and is discarded when the board changes.
-- Choose **Solution walkthrough** from the generator or play screen for a separate interactive replay from the original clues to completion. Each Next click fills exactly one new cell and explains its deduction; use Previous, autoplay with speed control, Restart, or the replay slider. A two-column technique tally counts single-cell steps, including search-based eliminations. Play entries are preserved. Preparation streams in a cancellable worker. When the six teaching techniques stall, the replay explicitly labels a search-based elimination (internal backtracking branches are not shown), rather than silently reading the stored answer.
 - Use **Export grid** to copy a single grid string or download it as `.txt`. Use **Import grid** to paste a string or choose a file (legacy JSON is also accepted). Original clues are preserved, not play progress or a stored answer; uniqueness is verified in a cancellable worker.
 - Copy either grid as an image.
 - Light mode is the default; an explicitly saved light/dark preference is respected.
@@ -17,7 +15,6 @@ A standalone Tango puzzle generator built with React, TypeScript, and TanStack S
 
 Each row and column contains equal numbers of orange and blue symbols (half the grid size each), with no three identical consecutive symbols. Cells joined by `=` match; cells joined by `×` differ. The generator removes clues only when its backtracking solver confirms that exactly one solution remains. In rotational-pair mode, both symmetric clues are removed before testing and both are restored if uniqueness is lost. Symmetry applies to clue positions, not their colors or relation values. For 10×10 and 12×12, difficult uniqueness checks are conservatively rejected and digging has an eight-second budget. These puzzles may retain extra clues; incomplete searches are never accepted as proof of uniqueness. All generation runs in a cancellable Web Worker.
 
-Hints cover avoiding triples, filling gaps, completing color quotas, following relations and relation chains, and eliminating whole-line patterns. They assume the player's current entries are correct, report detected contradictions first, and explicitly stop when these techniques find no move. Line-pattern analysis enumerates valid rows and columns without full-board backtracking; it does not guarantee that every generated puzzle can be completed with these techniques alone.
 
 ## Run locally
 
@@ -56,8 +53,6 @@ This prerenders the Tango page into `dist/client/tango/index.html`, generates a 
 
 - `src/lib/tango.ts`: solution generation, clue removal, and uniqueness checking.
 - `src/lib/tango.worker.ts`: background generation and error reporting.
-- `src/lib/tango-hints.ts` and `tango-hints.worker.ts`: answer-independent deductions and background analysis.
-- `src/components/TangoHints.tsx`: progressive hints and the illustrated technique library.
 - `src/routes/tango.tsx`: size selection, worker lifecycle, and generator page.
 - `src/components/TangoGrid.tsx`: puzzle and solution rendering.
 - `src/components/CopyImageButton.tsx`: image export.
