@@ -11,6 +11,7 @@ import {
 import type { GenerationRequest, GenerationResult } from "@/lib/tango.worker";
 import { TangoGrid } from "@/components/TangoGrid";
 import { TangoGame } from "@/components/TangoGame";
+import { TangoWalkthrough } from "@/components/TangoWalkthrough";
 import { CopyImageButton } from "@/components/CopyImageButton";
 import { Button } from "@/components/ui/button";
 import { exportPuzzle, MAX_PUZZLE_FILE_BYTES } from "@/lib/tango-files";
@@ -50,6 +51,7 @@ function TangoPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const importRequest = useRef(0);
   const [playing, setPlaying] = useState(false);
+  const [walking, setWalking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const puzzleRef = useRef<HTMLDivElement>(null);
@@ -443,6 +445,14 @@ function TangoPage() {
               <Button disabled={loading} onClick={() => setPlaying(true)}>
                 Play this grid
               </Button>
+              <Button
+                variant="outline"
+                disabled={loading}
+                aria-expanded={walking}
+                onClick={() => setWalking((current) => !current)}
+              >
+                {walking ? "Hide walkthrough" : "Solution walkthrough"}
+              </Button>
             </div>
             <p className="text-sm text-muted-foreground">
               Givens: <span className="font-semibold text-foreground">{t.circles}</span> /{" "}
@@ -450,38 +460,46 @@ function TangoPage() {
               <span className="font-semibold text-foreground">{t.symbols}</span> · Total placements:{" "}
               <span className="font-semibold text-foreground">{t.circles + t.symbols}</span>
             </p>
-            <div
-              className={`grid w-full grid-cols-1 items-start gap-12 ${state.grid.length <= 8 ? "md:grid-cols-2 md:gap-8" : ""}`}
-            >
-              <div className="flex flex-col items-center gap-3">
-                <TangoGrid
-                  ref={puzzleRef}
-                  grid={state.grid}
-                  givens={state.grid}
-                  hRel={state.hRel}
-                  vRel={state.vRel}
-                  label="Puzzle"
-                />
-                <CopyImageButton
-                  targetRef={puzzleRef}
-                  filename={`tango-${state.grid.length}x${state.grid.length}-puzzle.png`}
-                />
+            {walking ? (
+              <TangoWalkthrough
+                key={exportPuzzle(state)}
+                puzzle={state}
+                onExit={() => setWalking(false)}
+              />
+            ) : (
+              <div
+                className={`grid w-full grid-cols-1 items-start gap-12 ${state.grid.length <= 8 ? "md:grid-cols-2 md:gap-8" : ""}`}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <TangoGrid
+                    ref={puzzleRef}
+                    grid={state.grid}
+                    givens={state.grid}
+                    hRel={state.hRel}
+                    vRel={state.vRel}
+                    label="Puzzle"
+                  />
+                  <CopyImageButton
+                    targetRef={puzzleRef}
+                    filename={`tango-${state.grid.length}x${state.grid.length}-puzzle.png`}
+                  />
+                </div>
+                <div className="flex flex-col items-center gap-3">
+                  <TangoGrid
+                    ref={solutionRef}
+                    grid={state.solution}
+                    givens={state.grid}
+                    hRel={state.hRel}
+                    vRel={state.vRel}
+                    label="Solution"
+                  />
+                  <CopyImageButton
+                    targetRef={solutionRef}
+                    filename={`tango-${state.grid.length}x${state.grid.length}-solution.png`}
+                  />
+                </div>
               </div>
-              <div className="flex flex-col items-center gap-3">
-                <TangoGrid
-                  ref={solutionRef}
-                  grid={state.solution}
-                  givens={state.grid}
-                  hRel={state.hRel}
-                  vRel={state.vRel}
-                  label="Solution"
-                />
-                <CopyImageButton
-                  targetRef={solutionRef}
-                  filename={`tango-${state.grid.length}x${state.grid.length}-solution.png`}
-                />
-              </div>
-            </div>
+            )}
           </section>
         )}
       </div>

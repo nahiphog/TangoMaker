@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateTango } from "../src/lib/tango.ts";
 import { exportPuzzle, parsePuzzle, importPuzzle } from "../src/lib/tango-files.ts";
+import { buildWalkthrough } from "../src/lib/tango-walkthrough.ts";
 for (const size of [6, 8, 10, 12])
-  test(`${size}x${size}: export/import preserves clues and reconstructs the solution`, () => {
+  test(`${size}x${size}: export/import preserves clues and steps fill exactly one new cell`, () => {
     let seed = 6;
     const original = Math.random;
     let puzzle;
@@ -30,6 +31,31 @@ for (const size of [6, 8, 10, 12])
       ),
       puzzle,
     );
+    const groups = [];
+    buildWalkthrough({ board: imported.grid, hRel: imported.hRel, vRel: imported.vRel }, (s) =>
+      groups.push(s),
+    );
+    let previous = imported.grid,
+      count = 0;
+    for (const step of groups) {
+      assert.deepEqual(step.before, previous);
+
+      const changed = [];
+      for (let r = 0; r < size; r++)
+        for (let c = 0; c < size; c++)
+          if (step.after[r][c] !== step.before[r][c]) {
+            assert.equal(step.before[r][c], 0);
+            assert.equal(step.after[r][c], puzzle.solution[r][c]);
+            changed.push(`${r},${c}`);
+          }
+      assert.equal(changed.length, 1);
+      assert.equal(changed[0], step.target.join(","));
+      assert.ok(step.explanation.length > 0);
+      count += changed.length;
+      previous = step.after;
+    }
+    assert.equal(count, puzzle.grid.flat().filter((v) => !v).length);
+    assert.deepEqual(previous, puzzle.solution);
   });
 test("rejects malformed, oversized, conflicting, ambiguous, and unverified files", () => {
   const grid = Array.from({ length: 6 }, () => Array(6).fill(0));

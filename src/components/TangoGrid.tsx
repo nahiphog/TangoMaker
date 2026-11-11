@@ -18,6 +18,10 @@ interface Props {
   label: string;
   onCellChange?: (r: number, c: number, value: Cell) => void;
   conflicts?: Set<string>;
+  highlights?: Set<string>;
+  activeCell?: string;
+  activeCells?: Set<string>;
+  describeCells?: boolean;
 }
 
 const COLORS = {
@@ -26,7 +30,19 @@ const COLORS = {
 };
 
 export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
-  { grid, givens, hRel, vRel, label, onCellChange, conflicts },
+  {
+    grid,
+    givens,
+    hRel,
+    vRel,
+    label,
+    onCellChange,
+    conflicts,
+    highlights,
+    activeCell,
+    activeCells,
+    describeCells,
+  },
   ref,
 ) {
   const N = grid.length;
@@ -47,6 +63,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
               const color = val === ORANGE ? COLORS.orange : COLORS.blue;
               const CellElement = onCellChange ? "button" : "div";
               const invalid = conflicts?.has(`${r},${c}`) ?? false;
+              const highlighted = highlights?.has(`${r},${c}`) ?? false;
               return (
                 <CellElement
                   key={`${r}-${c}`}
@@ -54,9 +71,15 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                   disabled={onCellChange ? isGiven : undefined}
                   data-row={r}
                   data-col={c}
+                  role={describeCells ? "img" : undefined}
+                  style={
+                    activeCell === `${r},${c}` || activeCells?.has(`${r},${c}`)
+                      ? { outline: "3px dashed currentColor", outlineOffset: "-5px" }
+                      : undefined
+                  }
                   aria-label={
-                    onCellChange
-                      ? `Row ${r + 1}, column ${c + 1}: ${val === 0 ? "blank" : val === 1 ? "orange" : "blue"}${isGiven ? ", given" : ""}${invalid ? ", conflict" : ""}`
+                    onCellChange || describeCells
+                      ? `Row ${r + 1}, column ${c + 1}: ${val === 0 ? "blank" : val === 1 ? "orange" : "blue"}${isGiven ? ", given" : ""}${invalid ? ", conflict" : ""}${highlighted ? ", hint" : ""}`
                       : undefined
                   }
                   aria-invalid={onCellChange && invalid ? true : undefined}
@@ -106,7 +129,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                         }
                       : undefined
                   }
-                  className={`flex aspect-square w-full items-center justify-center ${onCellChange ? "focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-primary disabled:cursor-default" : ""} ${invalid ? "bg-destructive/10 ring-2 ring-inset ring-destructive" : ""} ${
+                  className={`flex aspect-square w-full items-center justify-center ${onCellChange ? "focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-primary disabled:cursor-default" : ""} ${invalid ? "bg-destructive/10 ring-2 ring-inset ring-destructive" : highlighted ? "bg-primary/10 ring-2 ring-inset ring-primary" : ""} ${
                     c === N - 1 ? "" : "border-r border-r-border"
                   } ${r === N - 1 ? "" : "border-b border-b-border"}`}
                 >
@@ -116,7 +139,7 @@ export const TangoGrid = forwardRef<HTMLDivElement, Props>(function TangoGrid(
                       style={{
                         backgroundColor: color.fill,
                         border: `${isGiven ? 2.5 : 1.5}px ${isGiven ? "solid" : "dashed"} ${color.stroke}`,
-                        opacity: isGiven || onCellChange ? 1 : 0.45,
+                        opacity: isGiven || onCellChange || describeCells ? 1 : 0.45,
                       }}
                     />
                   )}

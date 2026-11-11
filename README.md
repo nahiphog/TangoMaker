@@ -65,3 +65,5 @@ The compact format is a single string of digits: horizontal border relations, th
 
 Legacy TangoMaker version 1 JSON files remain importable. Input is limited to 64 KB. Uniqueness and solution reconstruction have a 15-second search budget and a node cap; incomplete searches are rejected rather than assumed unique.
 `Copy share link` creates a URL ending in `#grid=<grid string>`. Opening it automatically validates and loads the exact clues in a background worker, including the grid size. Only the clues are shared, not the solution or play progress. Invalid or non-unique puzzles are rejected. The URL also tracks the current generated or imported puzzle so refreshing preserves it.
+
+The solution walkthrough replays directly on the puzzle grid, with explanations, playback controls, and a technique tally alongside it (stacked on narrow screens). Each step fills exactly one cell. Closing or restarting restores the original clues; sharing and exporting continue to use those original clues. Walkthrough preparation runs in a background worker, using logical deductions first and explicitly labelled search when needed.
