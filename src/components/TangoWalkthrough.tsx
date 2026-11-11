@@ -4,7 +4,15 @@ import type { WalkthroughEvent, WalkthroughStep } from "@/lib/tango-walkthrough"
 import { TangoGrid } from "./TangoGrid";
 import { Button } from "./ui/button";
 
-export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () => void }) {
+export function TangoWalkthrough({
+  puzzle,
+  onExit,
+  embedded = false,
+}: {
+  puzzle: TangoPuzzle;
+  onExit: () => void;
+  embedded?: boolean;
+}) {
   const [steps, setSteps] = useState<WalkthroughStep[]>([]);
   const [phase, setPhase] = useState(0);
   const [running, setRunning] = useState(false);
@@ -99,16 +107,22 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
       aria-label="Solution walkthrough"
     >
       <header className="space-y-2 text-center">
-        <h1 ref={headingRef} tabIndex={-1} className="text-3xl font-semibold">
+        <h2 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold">
           Solution walkthrough
-        </h1>
+        </h2>
         <p className="text-sm text-muted-foreground">
           Watch the board change from its original clues to the completed puzzle. Your play entries
           are preserved.
         </p>
       </header>
-      <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
-        <div className="space-y-3 md:sticky md:top-20">
+      <div
+        className={
+          embedded
+            ? "grid min-w-0 gap-4"
+            : "grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]"
+        }
+      >
+        <div className={embedded ? "space-y-3" : "space-y-3 md:sticky md:top-20"}>
           <TangoGrid
             grid={board}
             givens={puzzle.grid}

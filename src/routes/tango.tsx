@@ -213,13 +213,6 @@ function TangoPage() {
 
   const t = state ? tallies(state) : null;
 
-  if (state && walking)
-    return (
-      <main className="min-h-[calc(100vh-57px)] bg-background px-6 py-10">
-        <TangoWalkthrough puzzle={state} onExit={() => setWalking(false)} />
-      </main>
-    );
-
   if (state && playing) {
     return (
       <main className="min-h-[calc(100vh-57px)] bg-background px-6 py-10">
@@ -453,8 +446,14 @@ function TangoPage() {
               <Button disabled={loading} onClick={() => setPlaying(true)}>
                 Play this grid
               </Button>
-              <Button variant="outline" disabled={loading} onClick={() => setWalking(true)}>
-                Solution walkthrough
+              <Button
+                variant="outline"
+                disabled={loading}
+                aria-expanded={walking}
+                aria-controls="inline-walkthrough"
+                onClick={() => setWalking((current) => !current)}
+              >
+                {walking ? "Hide walkthrough" : "Solution walkthrough"}
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -464,9 +463,15 @@ function TangoPage() {
               <span className="font-semibold text-foreground">{t.circles + t.symbols}</span>
             </p>
             <div
-              className={`grid w-full grid-cols-1 gap-12 ${state.grid.length <= 8 ? "md:grid-cols-2 md:gap-8" : ""}`}
+              className={`grid w-full grid-cols-1 items-start gap-12 ${walking || state.grid.length <= 8 ? "md:grid-cols-2 md:gap-8" : ""}`}
             >
-              <div className="flex flex-col items-center gap-3">
+              <div
+                className={
+                  walking
+                    ? "flex min-w-0 flex-col items-center gap-3 md:sticky md:top-20"
+                    : "flex flex-col items-center gap-3"
+                }
+              >
                 <TangoGrid
                   ref={puzzleRef}
                   grid={state.grid}
@@ -480,20 +485,31 @@ function TangoPage() {
                   filename={`tango-${state.grid.length}x${state.grid.length}-puzzle.png`}
                 />
               </div>
-              <div className="flex flex-col items-center gap-3">
-                <TangoGrid
-                  ref={solutionRef}
-                  grid={state.solution}
-                  givens={state.grid}
-                  hRel={state.hRel}
-                  vRel={state.vRel}
-                  label="Solution"
-                />
-                <CopyImageButton
-                  targetRef={solutionRef}
-                  filename={`tango-${state.grid.length}x${state.grid.length}-solution.png`}
-                />
-              </div>
+              {walking ? (
+                <div id="inline-walkthrough" className="min-w-0">
+                  <TangoWalkthrough
+                    key={exportPuzzle(state)}
+                    puzzle={state}
+                    embedded
+                    onExit={() => setWalking(false)}
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <TangoGrid
+                    ref={solutionRef}
+                    grid={state.solution}
+                    givens={state.grid}
+                    hRel={state.hRel}
+                    vRel={state.vRel}
+                    label="Solution"
+                  />
+                  <CopyImageButton
+                    targetRef={solutionRef}
+                    filename={`tango-${state.grid.length}x${state.grid.length}-solution.png`}
+                  />
+                </div>
+              )}
             </div>
           </section>
         )}
