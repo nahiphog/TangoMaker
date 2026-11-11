@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DEFAULT_DIGGING_METHOD,
   GRID_SIZES,
@@ -15,6 +15,7 @@ import { TangoWalkthrough } from "@/components/TangoWalkthrough";
 import { CopyImageButton } from "@/components/CopyImageButton";
 import { Button } from "@/components/ui/button";
 import { exportPuzzle, MAX_PUZZLE_FILE_BYTES } from "@/lib/tango-files";
+import { createShareLink, readSharedGrid } from "@/lib/tango-share";
 
 export const Route = createFileRoute("/tango")({
   head: () => ({
@@ -45,6 +46,8 @@ function TangoPage() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [gridString, setGridString] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [shareLink, setShareLink] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const importRequest = useRef(0);
   const [playing, setPlaying] = useState(false);
@@ -63,51 +66,92 @@ function TangoPage() {
     [],
   );
 
-  const cancel = () => {
+  const cancel = useCallback(() => {
     importRequest.current++;
     workerRef.current?.terminate();
     workerRef.current = null;
     setLoading(false);
     setImporting(false);
-  };
+  }, []);
 
-  const loadFile = async (file: File | string) => {
-    cancel();
-    setError(null);
-    if ((typeof file === "string" ? file.length : file.size) > MAX_PUZZLE_FILE_BYTES) {
-      setError("Puzzle files must be smaller than 64 KB.");
-      return;
-    }
-    const request = importRequest.current;
-    setLoading(true);
-    setImporting(true);
-    try {
-      const text = typeof file === "string" ? file : await file.text();
-      if (request !== importRequest.current) return;
-      const worker = new Worker(new URL("../lib/tango-import.worker.ts", import.meta.url), {
-        type: "module",
-      });
-      workerRef.current = worker;
-      worker.onmessage = (event: MessageEvent<GenerationResult>) => {
-        if (workerRef.current !== worker || request !== importRequest.current) return;
-        if (event.data.ok) {
-          setState(event.data.puzzle);
-          setSize(event.data.puzzle.grid.length as GridSize);
-          setGridString(exportPuzzle(event.data.puzzle));
-          setCopyStatus("Grid imported successfully.");
-        } else setError(event.data.error);
-        cancel();
-      };
-      worker.onerror = worker.onmessageerror = () => {
-        if (workerRef.current !== worker) return;
-        setError("Could not validate this puzzle file. Please try again.");
-        cancel();
-      };
-      worker.postMessage(text);
-    } catch {
-      if (request !== importRequest.current) return;
-      setError("Could not read the puzzle file or start validation.");
+  const loadFile = useCallback(
+    async (file: File | string) => {
       cancel();
+      setError(null);
+      if ((typeof file === "string" ? file.length : file.size) > MAX_PUZZLE_FILE_BYTES) {
+        setError("Puzzle files must be smaller than 64 KB.");
+        return;
+      }
+      const request = importRequest.current;
+      setLoading(true);
+      setImporting(true);
+      try {
+        const text = typeof file === "string" ? file : await file.text();
+        if (request !== importRequest.current) return;
+        const worker = new Worker(new URL("../lib/tango-import.worker.ts", import.meta.url), {
+          type: "module",
+        });
+        workerRef.current = worker;
+        worker.onmessage = (event: MessageEvent<GenerationResult>) => {
+          if (workerRef.current !== worker || request !== importRequest.current) return;
+          if (event.data.ok) {
+            setState(event.data.puzzle);
+            setSize(event.data.puzzle.grid.length as GridSize);
+            setGridString(exportPuzzle(event.data.puzzle));
+            setCopyStatus("Grid imported successfully.");
+            setShareLink("");
+            setShareStatus("");
+            window.history.replaceState(
+              window.history.state,
+              "",
+              createShareLink(window.location.href, event.data.puzzle),
+            );
+          } else setError(event.data.error);
+          cancel();
+        };
+        worker.onerror = worker.onmessageerror = () => {
+          if (workerRef.current !== worker) return;
+          setError("Could not validate this puzzle file. Please try again.");
+          cancel();
+        };
+        worker.postMessage(text);
+      } catch {
+        if (request !== importRequest.current) return;
+        setError("Could not read the puzzle file or start validation.");
+        cancel();
+      }
+    },
+    [cancel],
+  );
+
+  useEffect(() => {
+    const loadFromLink = () => {
+      try {
+        const grid = readSharedGrid(window.location.hash);
+        if (grid !== null) {
+          setPlaying(false);
+          setWalking(false);
+          void loadFile(grid);
+        }
+      } catch (error) {
+        cancel();
+        setError(error instanceof Error ? error.message : "Invalid share link.");
+      }
+    };
+    loadFromLink();
+    window.addEventListener("hashchange", loadFromLink);
+    return () => window.removeEventListener("hashchange", loadFromLink);
+  }, [loadFile, cancel]);
+
+  const copyShareLink = async () => {
+    if (!state) return;
+    const link = createShareLink(window.location.href, state);
+    setShareLink(link);
+    try {
+      await navigator.clipboard.writeText(link);
+      setShareStatus("Share link copied.");
+    } catch {
+      setShareStatus("Select and copy the link below.");
     }
   };
 
@@ -139,8 +183,16 @@ function TangoPage() {
       };
       worker.onmessage = (event: MessageEvent<GenerationResult>) => {
         if (workerRef.current !== worker) return;
-        if (event.data.ok) setState(event.data.puzzle);
-        else setError(event.data.error);
+        if (event.data.ok) {
+          setState(event.data.puzzle);
+          setShareLink("");
+          setShareStatus("");
+          window.history.replaceState(
+            window.history.state,
+            "",
+            createShareLink(window.location.href, event.data.puzzle),
+          );
+        } else setError(event.data.error);
         finish();
       };
       const fail = () => {
@@ -204,6 +256,8 @@ function TangoPage() {
                   cancel();
                   setSize(Number(event.target.value) as GridSize);
                   setState(null);
+                  setShareLink("");
+                  window.history.replaceState(window.history.state, "", window.location.pathname);
                   setError(null);
                 }}
                 className="rounded-md border border-input bg-background px-4 py-2 text-foreground"
@@ -227,6 +281,8 @@ function TangoPage() {
                   cancel();
                   setMethod(event.target.value as DiggingMethod);
                   setState(null);
+                  setShareLink("");
+                  window.history.replaceState(window.history.state, "", window.location.pathname);
                   setError(null);
                 }}
                 className="rounded-md border border-input bg-background px-4 py-2 text-foreground"
@@ -282,7 +338,29 @@ function TangoPage() {
                 {importing ? "Cancel import" : "Cancel generation"}
               </Button>
             )}
+            {state && (
+              <Button variant="outline" disabled={loading} onClick={copyShareLink}>
+                Copy share link
+              </Button>
+            )}
           </div>
+          {state && shareLink && (
+            <div className="w-full max-w-2xl text-left">
+              <label htmlFor="share-link" className="text-sm font-medium">
+                Share link
+              </label>
+              <input
+                id="share-link"
+                readOnly
+                value={shareLink}
+                onFocus={(event) => event.currentTarget.select()}
+                className="w-full rounded border bg-background p-2 text-xs"
+              />
+              <p role="status" className="text-xs">
+                {shareStatus}
+              </p>
+            </div>
+          )}
           {showTransfer && (
             <section
               className="w-full max-w-2xl space-y-2 rounded-lg border p-3 text-left"
