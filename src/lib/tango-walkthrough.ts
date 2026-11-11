@@ -12,37 +12,9 @@ export type WalkthroughStep = {
   search: boolean;
 };
 export type WalkthroughEvent =
-  | { kind: "step"; step: GroupedWalkthroughStep }
+  | { kind: "step"; step: WalkthroughStep }
   | { kind: "complete" }
   | { kind: "error"; message: string };
-
-export type GroupedWalkthroughStep = WalkthroughStep & {
-  placements: { target: Position; value: Cell; explanation: string }[];
-};
-
-// Merge consecutive deductions of the same technique, retaining every reason.
-// A published group is immutable so replay never changes under the user's feet.
-export function buildGroupedWalkthrough(
-  input: HintInput,
-  emit: (step: GroupedWalkthroughStep) => void,
-) {
-  let pending: GroupedWalkthroughStep | undefined;
-  buildWalkthrough(input, (step) => {
-    const placement = { target: step.target, value: step.value, explanation: step.explanation };
-    if (pending && pending.title === step.title && !step.search) {
-      pending.after = step.after;
-      pending.placements.push(placement);
-      const cells = new Map(
-        [...pending.cells, ...step.cells].map((cell) => [cell.join(","), cell]),
-      );
-      pending.cells = [...cells.values()];
-    } else {
-      if (pending) emit(pending);
-      pending = { ...step, placements: [placement] };
-    }
-  });
-  if (pending) emit(pending);
-}
 
 // Streams a replay from original clues. The answer is deliberately not an input.
 // Search is a clearly labelled fallback, never disguised as a human deduction.

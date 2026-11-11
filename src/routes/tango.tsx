@@ -42,6 +42,9 @@ function TangoPage() {
   const [state, setState] = useState<TangoPuzzle | null>(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [gridString, setGridString] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const importRequest = useRef(0);
   const [playing, setPlaying] = useState(false);
@@ -68,10 +71,10 @@ function TangoPage() {
     setImporting(false);
   };
 
-  const loadFile = async (file: File) => {
+  const loadFile = async (file: File | string) => {
     cancel();
     setError(null);
-    if (file.size > MAX_PUZZLE_FILE_BYTES) {
+    if ((typeof file === "string" ? file.length : file.size) > MAX_PUZZLE_FILE_BYTES) {
       setError("Puzzle files must be smaller than 64 KB.");
       return;
     }
@@ -79,7 +82,7 @@ function TangoPage() {
     setLoading(true);
     setImporting(true);
     try {
-      const text = await file.text();
+      const text = typeof file === "string" ? file : await file.text();
       if (request !== importRequest.current) return;
       const worker = new Worker(new URL("../lib/tango-import.worker.ts", import.meta.url), {
         type: "module",
@@ -90,6 +93,8 @@ function TangoPage() {
         if (event.data.ok) {
           setState(event.data.puzzle);
           setSize(event.data.puzzle.grid.length as GridSize);
+          setGridString(exportPuzzle(event.data.puzzle));
+          setCopyStatus("Grid imported successfully.");
         } else setError(event.data.error);
         cancel();
       };
@@ -108,10 +113,10 @@ function TangoPage() {
 
   const saveFile = () => {
     if (!state) return;
-    const url = URL.createObjectURL(new Blob([exportPuzzle(state)], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([exportPuzzle(state)], { type: "text/plain" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `tango-${state.grid.length}x${state.grid.length}.json`;
+    link.download = `tango-${state.grid.length}x${state.grid.length}.txt`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -240,7 +245,7 @@ function TangoPage() {
             <input
               ref={fileRef}
               type="file"
-              accept=".json,application/json"
+              accept=".txt,.json,text/plain,application/json"
               className="hidden"
               aria-label="Import puzzle file"
               onChange={(event) => {
@@ -249,11 +254,26 @@ function TangoPage() {
                 if (file) void loadFile(file);
               }}
             />
-            <Button variant="outline" disabled={loading} onClick={() => fileRef.current?.click()}>
+            <Button
+              variant="outline"
+              disabled={loading}
+              onClick={() => {
+                setShowTransfer(true);
+                setCopyStatus("");
+              }}
+            >
               Import grid
             </Button>
             {state && (
-              <Button variant="outline" disabled={loading} onClick={saveFile}>
+              <Button
+                variant="outline"
+                disabled={loading}
+                onClick={() => {
+                  setGridString(exportPuzzle(state));
+                  setShowTransfer(true);
+                  setCopyStatus("");
+                }}
+              >
                 Export grid
               </Button>
             )}
@@ -263,6 +283,73 @@ function TangoPage() {
               </Button>
             )}
           </div>
+          {showTransfer && (
+            <section
+              className="w-full max-w-2xl space-y-2 rounded-lg border p-3 text-left"
+              aria-label="Import and export grid"
+            >
+              <label htmlFor="grid-string" className="text-sm font-medium">
+                Grid string
+              </label>
+              <textarea
+                id="grid-string"
+                className="w-full rounded border bg-background p-2 font-mono text-xs break-all"
+                rows={4}
+                spellCheck={false}
+                value={gridString}
+                maxLength={MAX_PUZZLE_FILE_BYTES}
+                onChange={(event) => {
+                  setGridString(event.target.value);
+                  setCopyStatus("");
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Order: horizontal borders, vertical borders, then cells — each row from left to
+                right, top to bottom. Borders: 0 none, 1 =, 2 ×. Cells: 0 empty, 1 orange, 2 blue.
+                No separators; size is detected from length.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  disabled={loading || !gridString.trim()}
+                  onClick={() => void loadFile(gridString)}
+                >
+                  Import string
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!gridString.trim()}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(gridString.trim());
+                      setCopyStatus("String copied.");
+                    } catch {
+                      setCopyStatus("Select the string above and copy it manually.");
+                    }
+                  }}
+                >
+                  Copy string
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Choose file
+                </Button>
+                {state && (
+                  <Button variant="outline" disabled={loading} onClick={saveFile}>
+                    Download current grid
+                  </Button>
+                )}
+                <Button variant="ghost" onClick={() => setShowTransfer(false)}>
+                  Close
+                </Button>
+              </div>
+              <p role="status" className="text-xs">
+                {copyStatus}
+              </p>
+            </section>
+          )}
           <p id="digging-description" className="max-w-lg text-sm text-muted-foreground">
             {method === "rotational-pairs"
               ? "Removes two clues at positions related by a 180° rotation together, keeping a symmetric clue layout. Colors and relation symbols need not match."

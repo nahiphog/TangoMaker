@@ -2,23 +2,32 @@ import { countSolutions, GRID_SIZES, type GridSize, type TangoPuzzle } from "./t
 
 export const MAX_PUZZLE_FILE_BYTES = 64 * 1024;
 export function exportPuzzle(puzzle: TangoPuzzle): string {
-  return JSON.stringify(
-    {
-      format: "TangoMaker",
-      version: 1,
-      size: puzzle.grid.length,
-      grid: puzzle.grid,
-      hRel: puzzle.hRel,
-      vRel: puzzle.vRel,
-    },
-    null,
-    2,
-  );
+  return [...puzzle.hRel.flat(), ...puzzle.vRel.flat(), ...puzzle.grid.flat()].join("");
 }
 
 export function parsePuzzle(text: string): Omit<TangoPuzzle, "solution"> {
   if (text.length > MAX_PUZZLE_FILE_BYTES)
     throw new Error("Puzzle files must be smaller than 64 KB.");
+  text = text.replace(/^\uFEFF/, "").trim();
+  // Row-major horizontal borders, row-major vertical borders, row-major cells.
+  // Total length is 2*N*(N-1) + N*N; each supported size has a unique length.
+  if (!text.startsWith("{")) {
+    if (!/^[012]+$/.test(text))
+      throw new Error("A grid string must contain only 0, 1, and 2, with no separators.");
+    const size = GRID_SIZES.find((n) => 3 * n * n - 2 * n === text.length);
+    if (!size)
+      throw new Error(
+        "Invalid grid string length. Use 96 (6×6), 176 (8×8), 280 (10×10), or 408 (12×12) digits.",
+      );
+    let offset = 0;
+    const read = (rows: number, cols: number) =>
+      Array.from({ length: rows }, () =>
+        Array.from({ length: cols }, () => Number(text[offset++]) as 0 | 1 | 2),
+      );
+    const hRel = read(size, size - 1);
+    const vRel = read(size - 1, size);
+    return { hRel, vRel, grid: read(size, size) };
+  }
   let data;
   try {
     data = JSON.parse(text.replace(/^\uFEFF/, ""));

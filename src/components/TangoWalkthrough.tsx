@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { TangoPuzzle } from "@/lib/tango";
-import type { WalkthroughEvent, GroupedWalkthroughStep } from "@/lib/tango-walkthrough";
+import type { WalkthroughEvent, WalkthroughStep } from "@/lib/tango-walkthrough";
 import { TangoGrid } from "./TangoGrid";
 import { Button } from "./ui/button";
 
 export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onExit: () => void }) {
-  const [steps, setSteps] = useState<GroupedWalkthroughStep[]>([]);
+  const [steps, setSteps] = useState<WalkthroughStep[]>([]);
   const [phase, setPhase] = useState(0);
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(2500);
@@ -116,12 +116,12 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
             vRel={puzzle.vRel}
             label={phase === 0 ? "Original clues" : `After step ${phase}`}
             highlights={new Set(step?.cells.map((cell) => cell.join(",")) ?? [])}
-            activeCells={new Set(step?.placements.map((item) => item.target.join(",")) ?? [])}
+            activeCell={step?.target.join(",")}
             describeCells
           />
           <p className="text-center text-sm">
             {filled} / {board.length ** 2} cells filled · outlined cells explain the move; the
-            dashed outlines mark the newly filled cells.
+            dashed outline marks the newly filled cell.
           </p>
         </div>
         <div className="space-y-4">
@@ -143,28 +143,15 @@ export function TangoWalkthrough({ puzzle, onExit }: { puzzle: TangoPuzzle; onEx
                   </p>
                 )}
                 <p className="text-sm font-medium">
-                  {step.placements.length} new cell{step.placements.length === 1 ? "" : "s"} filled.
+                  Row {step.target[0] + 1}, column {step.target[1] + 1}: placed{" "}
+                  {step.value === 1 ? "orange" : "blue"}.
                 </p>
-                <ol
-                  className="max-h-64 space-y-2 overflow-y-auto text-sm"
-                  aria-label="Deductions in this step"
-                >
-                  {step.placements.map((item) => (
-                    <li key={item.target.join(",")}>
-                      <strong>
-                        R{item.target[0] + 1} C{item.target[1] + 1}:{" "}
-                        {item.value === 1 ? "orange" : "blue"}.
-                      </strong>{" "}
-                      {item.explanation}
-                    </li>
-                  ))}
-                </ol>
+                <p className="text-sm">{step.explanation}</p>
               </>
             ) : (
               <p className="text-sm">
-                Next fills one or more cells, grouping consecutive deductions that use the same
-                technique. Use Autoplay to watch the solution unfold, or pause, rewind, and drag the
-                replay position at any time.
+                Next fills exactly one new cell and explains the deduction. Use Autoplay to watch
+                the solution unfold, or pause, rewind, and drag the replay position at any time.
               </p>
             )}
             {finished && (

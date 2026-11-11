@@ -13,8 +13,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "../components/SiteHeader";
 
-// Pre-hydration script: applies stored/system theme before React renders to avoid a flash.
-const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+// Pre-hydration script: applies the saved theme (light by default) before React renders to avoid a flash.
+const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark';if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 function NotFoundComponent() {
   return (
